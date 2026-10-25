@@ -374,9 +374,8 @@ button:disabled { cursor: not-allowed; }
 .field-help code { font-size: 11px; }
 .checkbox { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 
-/* ---- inline autocomplete (!Area) ---- */
-.suggest {
-  list-style: none;
+/* ---- inline autocomplete (!Area, +Project) and date picker ---- */
+.suggest, .datepicker {
   margin: 4px 0 0;
   padding: 4px;
   border: 1px solid var(--border);
@@ -384,7 +383,8 @@ button:disabled { cursor: not-allowed; }
   background: var(--card);
   font-size: 13px;
 }
-.suggest li[role='option'] {
+.suggest-list { list-style: none; margin: 0; padding: 0; max-height: 196px; overflow-y: auto; }
+.suggest-list li[role='option'] {
   display: flex;
   align-items: center;
   gap: 2px;
@@ -392,7 +392,37 @@ button:disabled { cursor: not-allowed; }
   border-radius: 6px;
   cursor: pointer;
 }
-.suggest li.active { background: var(--accent-tint); color: var(--primary); }
+.suggest-list li.active { background: var(--accent-tint); color: var(--primary); }
 .suggest-marker { opacity: 0.6; }
 .suggest-hint { padding: 4px 8px 2px; font-size: 11px; color: var(--muted-foreground); }
 .footer-row-end { justify-content: flex-end; }
+
+.datepicker { padding: 6px 8px 4px; }
+.datepicker-head { display: flex; justify-content: space-between; align-items: baseline; padding: 0 2px 4px; }
+.datepicker-month { font-weight: 600; }
+.datepicker-for { font-size: 11px; color: var(--primary); text-transform: uppercase; letter-spacing: 0.04em; }
+.datepicker-grid { width: 100%; border-collapse: separate; border-spacing: 2px; table-layout: fixed; }
+.datepicker-grid th { font-size: 11px; font-weight: 500; color: var(--muted-foreground); padding: 2px 0; text-align: center; }
+.datepicker-grid td { padding: 0; text-align: center; }
+.datepicker-grid button {
+  width: 100%;
+  height: 26px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.datepicker-grid button:hover { background: var(--muted); }
+.datepicker-grid button.outside { color: var(--muted-foreground); opacity: 0.5; }
+.datepicker-grid button.today { border-color: var(--foreground); font-weight: 600; }
+.datepicker-grid button.selected { background: var(--primary); color: var(--primary-foreground); }
+
+/* ---- settings: "While typing" group ---- */
+.settings-group { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; border: 0; }
+.settings-group legend { padding: 0; margin-bottom: 6px; }
+.suggest-setting { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; }
+.inline-field { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted-foreground); }
+.text-input.input-tiny { width: 44px; height: 28px; padding: 0 6px; text-align: center; }
+.select.select-small { width: auto; height: 28px; }

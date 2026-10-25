@@ -5,7 +5,7 @@
 //
 //   ` !1`..` !4`        removed here; applied as priority after core runs
 //   `[label](url)`      replaced by the label (escaped, so it stays plain text)
-//   bare `due:`/`review:` get the leading `/` core expects
+//   bare `start:`/`due:`/`review:` get the leading `/` core expects
 
 import type { TaskPriority } from '../../vendor/mindwtr-core/src/types';
 import { parseQuickAddDateCommands } from '../../vendor/mindwtr-core/src/quick-add';
@@ -19,6 +19,7 @@ export const SHORTHAND_PRIORITIES: Record<string, TaskPriority> = {
 };
 
 export interface PrepassOptions {
+    bareStart: boolean;
     bareDue: boolean;
     bareReview: boolean;
 }
@@ -39,6 +40,7 @@ export interface PrepassResult {
     map: number[];
     markdownLinks: MarkdownLink[];
     priority?: { rawStart: number; rawEnd: number; value: TaskPriority };
+    bareStart?: { rawStart: number };
     bareDue?: { rawStart: number };
     bareReview?: { rawStart: number };
 }
@@ -138,7 +140,7 @@ export function prepass(raw: string, options: PrepassOptions, now: Date): Prepas
         }
     }
 
-    const bare = (command: 'due' | 'review'): { rawStart: number } | undefined => {
+    const bare = (command: 'start' | 'due' | 'review'): { rawStart: number } | undefined => {
         if (new RegExp(String.raw`(?:^|\s)\/${command}:`, 'i').test(masked)) return undefined;
         const re = new RegExp(String.raw`(?:^|\s)(${command}:)(?=\S)`, 'gi');
         for (const match of masked.matchAll(re)) {
@@ -149,6 +151,7 @@ export function prepass(raw: string, options: PrepassOptions, now: Date): Prepas
         }
         return undefined;
     };
+    const bareStart = options.bareStart ? bare('start') : undefined;
     const bareDue = options.bareDue ? bare('due') : undefined;
     const bareReview = options.bareReview ? bare('review') : undefined;
 
@@ -180,7 +183,7 @@ export function prepass(raw: string, options: PrepassOptions, now: Date): Prepas
     let current = { text, map };
     for (const command of DATE_COMMANDS) current = splitDateCommand(current.text, current.map, command, now, markdownLinks);
 
-    return { text: current.text, map: current.map, markdownLinks, priority, bareDue, bareReview };
+    return { text: current.text, map: current.map, markdownLinks, priority, bareStart, bareDue, bareReview };
 }
 
 const DATE_COMMANDS = [

@@ -107,16 +107,20 @@ function normalizeSpans(spans: HighlightSpan[]): HighlightSpan[] {
 
 export function parseCapture(input: string, ctx: CaptureContext, defaults: CaptureDefaults = {}): ParsedCapture {
     const now = ctx.now ?? new Date();
-    const options: PrepassOptions = { bareDue: true, bareReview: true };
+    const options: PrepassOptions = { bareStart: true, bareDue: true, bareReview: true };
     let naturalLanguageDates = true;
     let run = attempt(input, ctx, now, options, naturalLanguageDates);
 
     // Undo extensions that turned out not to apply, so they read as plain text:
-    // a bare `due:`/`review:` whose value isn't a date, and a bare natural
+    // a bare `start:`/`due:`/`review:` whose value isn't a date, and a bare natural
     // date that core found inside a markdown link label.
     for (let pass = 0; pass < 3; pass += 1) {
         const invalid = run.result.invalidDateCommands ?? [];
         let changed = false;
+        if (run.pre.bareStart && invalid.some((c) => c.toLowerCase().startsWith('/start:'))) {
+            options.bareStart = false;
+            changed = true;
+        }
         if (run.pre.bareDue && invalid.some((c) => c.toLowerCase().startsWith('/due:'))) {
             options.bareDue = false;
             changed = true;

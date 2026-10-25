@@ -5,12 +5,18 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent, ReactNode } from 'react';
 import { segment, type HighlightSpan } from '../capture';
-import { activeToken, applyCompletion, rankSuggestions } from '../completion';
+import { activeDateCommand, activeToken, applyCompletion, applyDate, rankSuggestions } from '../completion';
+import { addDays, addMonths, firstSameWeekday, lastSameWeekday, startOfDay, toIsoDate, type WeekStart } from '../calendar';
+import { DatePicker } from './DatePicker';
 
-/** Names offered while typing `<marker><letters>`, e.g. areas after `!`. */
+/** Names offered while typing `<marker><name>`, e.g. areas after `!`. */
 export interface CompletionSource {
   marker: string;
   names: string[];
+  /** Characters after the marker before the list opens (0 = right away). */
+  minChars: number;
+  /** Most entries shown; null = all. */
+  maxItems: number | null;
 }
 
 interface Props {
@@ -28,6 +34,8 @@ interface Props {
   /** Extra content inside the field (e.g. the star button). */
   children?: ReactNode;
   completions?: CompletionSource[];
+  /** Calendar after an empty `due:`/`start:`/`review:`; omit to turn it off. */
+  datePicker?: { weekStart: WeekStart };
 }
 
 export interface HighlightedFieldHandle {
@@ -35,11 +43,12 @@ export interface HighlightedFieldHandle {
 }
 
 export const HighlightedField = forwardRef<HighlightedFieldHandle, Props>(function HighlightedField(
-  { value, onChange, highlights, onKeyDown, placeholder, maxRows = 6, minRows = 1, className, ariaLabel, disabled, children, completions },
+  { value, onChange, highlights, onKeyDown, placeholder, maxRows = 6, minRows = 1, className, ariaLabel, disabled, children, completions, datePicker },
   ref,
 ) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const mirrorRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
 
   useImperativeHandle(ref, () => ({
     focus: () => {
@@ -50,28 +59,49 @@ export const HighlightedField = forwardRef<HighlightedFieldHandle, Props>(functi
     },
   }));
 
-  // ---- autocomplete: up to 5 names under the field; arrows move, Space/Tab/Enter accept, Esc dismisses.
+  // ---- popups under the field ------------------------------------------------
+  // Suggestions: arrows move, Space/Tab/Enter accept, Esc dismisses.
+  // Date picker: arrows move by day/week, Shift+arrows by month / to the top or
+  // bottom of the month, Space/Tab/Enter insert the date, Esc dismisses.
   const [caret, setCaret] = useState(0);
   const [activeIndex, setActiveIndex] = useState(0);
-  const [dismissedAt, setDismissedAt] = useState<number | null>(null);
+  const [navigated, setNavigated] = useState(false);
+  const [dismissed, setDismissed] = useState<string | null>(null);
+  const [pickerDate, setPickerDate] = useState(() => startOfDay(new Date()));
   const pendingCaret = useRef<number | null>(null);
 
+  const dateCommand = useMemo(() => (datePicker ? activeDateCommand(value, caret) : null), [datePicker, value, caret]);
   const suggestion = useMemo(() => {
+    if (dateCommand) return null;
     for (const source of completions ?? []) {
-      const token = activeToken(value, caret, source.marker);
+      const token = activeToken(value, caret, source.marker, source.minChars);
       if (!token) continue;
-      const items = rankSuggestions(source.names, token.query);
+      const items = rankSuggestions(source.names, token.query, source.maxItems);
       if (items.length > 0) return { token, items };
     }
     return null;
-  }, [value, caret, completions]);
-  const open = suggestion !== null && dismissedAt !== suggestion.token.start;
+  }, [dateCommand, value, caret, completions]);
+
+  const popupKey = dateCommand ? `date:${dateCommand.at}` : suggestion ? `list:${suggestion.token.start}` : null;
+  const pickerOpen = dateCommand !== null && dismissed !== popupKey;
+  const listOpen = suggestion !== null && dismissed !== popupKey;
   const selected = suggestion ? Math.min(activeIndex, suggestion.items.length - 1) : 0;
 
-  useEffect(() => setActiveIndex(0), [suggestion?.token.query, suggestion?.token.start]);
   useEffect(() => {
-    if (!suggestion) setDismissedAt(null);
-  }, [suggestion]);
+    setActiveIndex(0);
+    setNavigated(false);
+  }, [suggestion?.token.query, suggestion?.token.start]);
+  useEffect(() => {
+    if (popupKey === null) setDismissed(null);
+  }, [popupKey]);
+  // Every new date command starts on today.
+  const dateAt = dateCommand?.at;
+  useEffect(() => {
+    if (dateAt !== undefined) setPickerDate(startOfDay(new Date()));
+  }, [dateAt]);
+  useEffect(() => {
+    listRef.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' });
+  }, [selected, listOpen]);
 
   useLayoutEffect(() => {
     const ta = textareaRef.current;
@@ -82,31 +112,58 @@ export const HighlightedField = forwardRef<HighlightedFieldHandle, Props>(functi
     }
   }, [value]);
 
-  const accept = (name: string) => {
-    if (!suggestion) return;
-    const next = applyCompletion(value, suggestion.token, name);
+  const replaceWith = (next: { text: string; caret: number }) => {
     pendingCaret.current = next.caret;
     onChange(next.text);
   };
+  const acceptName = (name: string) => {
+    if (suggestion) replaceWith(applyCompletion(value, suggestion.token, name));
+  };
+  const acceptDate = (date: Date) => {
+    if (dateCommand) replaceWith(applyDate(value, dateCommand, toIsoDate(date)));
+  };
+
+  const isAccept = (event: KeyboardEvent<HTMLTextAreaElement>) =>
+    event.key === ' ' || event.key === 'Tab' || (event.key === 'Enter' && !event.shiftKey && !event.ctrlKey && !event.metaKey);
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (open && suggestion && !event.nativeEvent.isComposing) {
+    if (event.nativeEvent.isComposing) return onKeyDown?.(event);
+    const { key, shiftKey } = event;
+    if ((pickerOpen || listOpen) && key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      setDismissed(popupKey);
+      return;
+    }
+    if (pickerOpen && dateCommand) {
+      const moves: Record<string, (d: Date) => Date> = shiftKey
+        ? { ArrowLeft: (d) => addMonths(d, -1), ArrowRight: (d) => addMonths(d, 1), ArrowUp: firstSameWeekday, ArrowDown: lastSameWeekday }
+        : { ArrowLeft: (d) => addDays(d, -1), ArrowRight: (d) => addDays(d, 1), ArrowUp: (d) => addDays(d, -7), ArrowDown: (d) => addDays(d, 7) };
+      if (moves[key]) {
+        event.preventDefault();
+        setPickerDate(moves[key]);
+        return;
+      }
+      if (isAccept(event)) {
+        event.preventDefault();
+        acceptDate(pickerDate);
+        return;
+      }
+    }
+    if (listOpen && suggestion) {
       const count = suggestion.items.length;
-      const { key } = event;
       if (key === 'ArrowDown' || key === 'ArrowUp') {
         event.preventDefault();
         setActiveIndex((selected + (key === 'ArrowDown' ? 1 : count - 1)) % count);
+        setNavigated(true);
         return;
       }
-      if (key === ' ' || key === 'Tab' || (key === 'Enter' && !event.shiftKey && !event.ctrlKey && !event.metaKey)) {
+      // With nothing typed after the marker yet, a plain Space is just a space
+      // unless an entry was chosen with the arrows.
+      const spaceIsText = key === ' ' && !suggestion.token.query && !navigated;
+      if (isAccept(event) && !spaceIsText) {
         event.preventDefault();
-        accept(suggestion.items[selected]);
-        return;
-      }
-      if (key === 'Escape') {
-        event.preventDefault();
-        event.stopPropagation();
-        setDismissedAt(suggestion.token.start);
+        acceptName(suggestion.items[selected]);
         return;
       }
     }
@@ -167,7 +224,7 @@ export const HighlightedField = forwardRef<HighlightedFieldHandle, Props>(functi
         aria-label={ariaLabel}
         placeholder={placeholder}
         aria-autocomplete={completions ? 'list' : undefined}
-        aria-expanded={completions ? open : undefined}
+        aria-expanded={completions || datePicker ? listOpen || pickerOpen : undefined}
         onChange={(e) => {
           setCaret(e.target.selectionStart);
           onChange(e.target.value);
@@ -178,26 +235,37 @@ export const HighlightedField = forwardRef<HighlightedFieldHandle, Props>(functi
       />
       {children}
     </div>
-    {open && suggestion ? (
-      <ul className="suggest" role="listbox" aria-label="Suggestions">
-        {suggestion.items.map((name, index) => (
-          <li
-            key={name}
-            role="option"
-            aria-selected={index === selected}
-            className={index === selected ? 'active' : undefined}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              accept(name);
-            }}
-            onMouseEnter={() => setActiveIndex(index)}
-          >
-            <span className="suggest-marker">{suggestion.token.marker}</span>
-            {name}
-          </li>
-        ))}
-        <li className="suggest-hint" aria-hidden="true">↑↓ to move · Space to pick</li>
-      </ul>
+    {pickerOpen && dateCommand && datePicker ? (
+      <DatePicker
+        command={dateCommand.command}
+        selected={pickerDate}
+        today={startOfDay(new Date())}
+        weekStart={datePicker.weekStart}
+        onPick={acceptDate}
+      />
+    ) : null}
+    {listOpen && suggestion ? (
+      <div className="suggest">
+        <ul ref={listRef} className="suggest-list" role="listbox" aria-label="Suggestions">
+          {suggestion.items.map((name, index) => (
+            <li
+              key={name}
+              role="option"
+              aria-selected={index === selected}
+              className={index === selected ? 'active' : undefined}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                acceptName(name);
+              }}
+              onMouseEnter={() => setActiveIndex(index)}
+            >
+              <span className="suggest-marker">{suggestion.token.marker}</span>
+              {name}
+            </li>
+          ))}
+        </ul>
+        <div className="suggest-hint" aria-hidden="true">↑↓ to move · Space to pick</div>
+      </div>
     ) : null}
     </>
   );

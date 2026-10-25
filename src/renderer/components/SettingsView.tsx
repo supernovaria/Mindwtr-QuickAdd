@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { KeyboardEvent } from 'react';
-import type { ConnectionInfo, InterfaceMode, Settings } from '../../preload/api';
+import type { ConnectionInfo, InterfaceMode, Settings, SuggestSettings } from '../../preload/api';
 import { bridge } from '../bridge';
 
 const MODIFIER_KEYS = new Set(['Control', 'Shift', 'Alt', 'Meta', 'AltGraph']);
@@ -47,6 +47,10 @@ export function SettingsView({ onDone, onSaved }: Props) {
   const [token, setToken] = useState('');
   const [startAtLogin, setStartAtLogin] = useState(false);
   const [interfaceMode, setInterfaceMode] = useState<InterfaceMode>('full');
+  const [areaSuggest, setAreaSuggest] = useState<SuggestDraft>(toDraft(DEFAULT_SUGGEST));
+  const [projectSuggest, setProjectSuggest] = useState<SuggestDraft>(toDraft(DEFAULT_SUGGEST));
+  const [datePicker, setDatePicker] = useState(true);
+  const [weekStart, setWeekStart] = useState<Settings['weekStart']>('monday');
   const [info, setInfo] = useState<ConnectionInfo | null>(null);
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
   const [recordingKey, setRecordingKey] = useState(false);
@@ -59,6 +63,10 @@ export function SettingsView({ onDone, onSaved }: Props) {
       setToken(s.apiToken ?? '');
       setStartAtLogin(s.startAtLogin);
       setInterfaceMode(s.interfaceMode);
+      setAreaSuggest(toDraft(s.areaSuggest));
+      setProjectSuggest(toDraft(s.projectSuggest));
+      setDatePicker(s.datePicker);
+      setWeekStart(s.weekStart);
     });
     void bridge.connectionInfo().then(setInfo);
   }, []);
@@ -69,12 +77,22 @@ export function SettingsView({ onDone, onSaved }: Props) {
       setMessage({ text: 'Port must be a number between 1024 and 65535.', error: true });
       return;
     }
+    const area = fromDraft(areaSuggest);
+    const project = fromDraft(projectSuggest);
+    if (!area || !project) {
+      setMessage({ text: 'Suggestion counts must be whole numbers (characters 0 or more, entries 1 or more, or empty for all).', error: true });
+      return;
+    }
     const result = await bridge.setSettings({
       hotkey,
       apiPort: portNumber,
       apiToken: token.trim() || null,
       startAtLogin,
       interfaceMode,
+      areaSuggest: area,
+      projectSuggest: project,
+      datePicker,
+      weekStart,
     });
     setSettings(result.settings);
     setHotkey(result.settings.hotkey);
@@ -164,6 +182,22 @@ export function SettingsView({ onDone, onSaved }: Props) {
           <option value="minimal">Minimal: just the input (no area, help or buttons)</option>
         </select>
       </label>
+      <fieldset className="settings-group">
+        <legend className="field-label">While typing</legend>
+        <SuggestRow label="! Area suggestions" value={areaSuggest} onChange={setAreaSuggest} />
+        <SuggestRow label="+ Project suggestions" value={projectSuggest} onChange={setProjectSuggest} />
+        <label className="checkbox">
+          <input type="checkbox" checked={datePicker} onChange={(e) => setDatePicker(e.target.checked)} />
+          <span>Calendar after due:, start: and review:</span>
+        </label>
+        <label className="inline-field">
+          <span>Week starts on</span>
+          <select className="select select-small" value={weekStart} onChange={(e) => setWeekStart(e.target.value as Settings['weekStart'])}>
+            <option value="monday">Monday</option>
+            <option value="sunday">Sunday</option>
+          </select>
+        </label>
+      </fieldset>
       {message ? (
         <p className={message.error ? 'error-text' : 'ok-text'} role={message.error ? 'alert' : 'status'}>
           {message.text}
@@ -181,5 +215,61 @@ export function SettingsView({ onDone, onSaved }: Props) {
         </div>
       </div>
     </form>
+  );
+}
+
+// ---- suggestion settings ----------------------------------------------------
+
+const DEFAULT_SUGGEST: SuggestSettings = { enabled: true, minChars: 1, maxItems: 5 };
+
+/** Form state: counts as typed, so an empty "entries" box can mean "all". */
+interface SuggestDraft {
+  enabled: boolean;
+  minChars: string;
+  maxItems: string;
+}
+
+const toDraft = (s: SuggestSettings): SuggestDraft => ({
+  enabled: s.enabled,
+  minChars: String(s.minChars),
+  maxItems: s.maxItems === null ? '' : String(s.maxItems),
+});
+
+function fromDraft(d: SuggestDraft): SuggestSettings | null {
+  const minChars = Number(d.minChars.trim() || '0');
+  const maxItems = d.maxItems.trim() ? Number(d.maxItems.trim()) : null;
+  if (!Number.isInteger(minChars) || minChars < 0) return null;
+  if (maxItems !== null && (!Number.isInteger(maxItems) || maxItems < 1)) return null;
+  return { enabled: d.enabled, minChars, maxItems };
+}
+
+function SuggestRow({ label, value, onChange }: { label: string; value: SuggestDraft; onChange: (next: SuggestDraft) => void }) {
+  return (
+    <div className="suggest-setting">
+      <label className="checkbox">
+        <input type="checkbox" checked={value.enabled} onChange={(e) => onChange({ ...value, enabled: e.target.checked })} />
+        <span>{label}</span>
+      </label>
+      <label className="inline-field" title="0 = as soon as you type the marker">
+        <span>after</span>
+        <input
+          className="text-input input-tiny"
+          inputMode="numeric"
+          disabled={!value.enabled}
+          value={value.minChars}
+          onChange={(e) => onChange({ ...value, minChars: e.target.value })}
+        />
+        <span>characters, show</span>
+        <input
+          className="text-input input-tiny"
+          inputMode="numeric"
+          placeholder="all"
+          disabled={!value.enabled}
+          value={value.maxItems}
+          onChange={(e) => onChange({ ...value, maxItems: e.target.value })}
+        />
+        <span>entries</span>
+      </label>
+    </div>
   );
 }

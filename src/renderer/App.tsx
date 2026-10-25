@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { Area, Attachment, Project } from '../../vendor/mindwtr-core/src/types';
-import type { ApiError, CreateTaskInput, CreateTaskOutcome, InterfaceMode, KnownTokens, View } from '../preload/api';
+import type { ApiError, CreateTaskInput, CreateTaskOutcome, InterfaceMode, KnownTokens, Settings, View } from '../preload/api';
 import { bridge } from './bridge';
 import {
   bulkHighlights,
@@ -39,6 +39,7 @@ export function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [recording, setRecording] = useState(false);
   const [ui, setUi] = useState<InterfaceMode>('full');
+  const [typing, setTyping] = useState<Pick<Settings, 'areaSuggest' | 'projectSuggest' | 'datePicker' | 'weekStart'> | null>(null);
 
   const cardRef = useRef<HTMLDivElement>(null);
   const fieldRef = useRef<HighlightedFieldHandle>(null);
@@ -60,6 +61,7 @@ export function App() {
     void bridge.getSettings().then((s) => {
       setAreaId(s.lastAreaId);
       setUi(s.interfaceMode);
+      setTyping(s);
     });
   }, [refresh]);
 
@@ -114,7 +116,21 @@ export function App() {
   );
   const parsed = useMemo(() => safeParse(text, ctx, defaults), [text, ctx, defaults]);
   const chips = useMemo(() => chipsFor(parsed, areas, projects), [parsed, areas, projects]);
-  const completions = useMemo(() => [{ marker: '!', names: areas.map((a) => a.name) }], [areas]);
+  const completions = useMemo(() => {
+    if (!typing) return [];
+    const live = <T extends { deletedAt?: string }>(items: T[]) => items.filter((item) => !item.deletedAt);
+    const sources = [];
+    if (typing.areaSuggest.enabled) sources.push({ marker: '!', names: live(areas).map((a) => a.name), ...typing.areaSuggest });
+    if (typing.projectSuggest.enabled) {
+      const open = live(projects).filter((p) => p.status !== 'archived');
+      sources.push({ marker: '+', names: open.map((p) => p.title), ...typing.projectSuggest });
+    }
+    return sources;
+  }, [typing, areas, projects]);
+  const datePicker = useMemo(
+    () => (typing?.datePicker ? { weekStart: typing.weekStart } : undefined),
+    [typing?.datePicker, typing?.weekStart],
+  );
   const bulkLines = useMemo(
     () => (view === 'bulk' ? safeParseBulk(bulkText, ctx, defaults) : []),
     [view, bulkText, ctx, defaults],
@@ -381,7 +397,10 @@ export function App() {
           }}
           onSaved={() => {
             void refresh();
-            void bridge.getSettings().then((s) => setUi(s.interfaceMode));
+            void bridge.getSettings().then((s) => {
+              setUi(s.interfaceMode);
+              setTyping(s);
+            });
           }}
         />
       ) : view === 'bulk' ? (
@@ -399,6 +418,7 @@ export function App() {
             onChange={setBulkText}
             highlights={bulkSpans}
             completions={completions}
+            datePicker={datePicker}
             minRows={4}
             maxRows={10}
             ariaLabel="Tasks, one per line"
@@ -482,6 +502,7 @@ export function App() {
             }}
             highlights={parsed.highlights}
             completions={completions}
+            datePicker={datePicker}
             maxRows={5}
             ariaLabel="Task"
             placeholder="Add Task"

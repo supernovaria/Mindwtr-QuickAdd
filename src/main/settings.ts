@@ -1,7 +1,7 @@
 // QuickAdd's own settings, stored as JSON in Electron's userData folder.
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import type { Settings } from '../preload/api';
+import type { Settings, SuggestSettings } from '../preload/api';
 
 export const DEFAULT_HOTKEY = 'Control+Alt+Space';
 
@@ -12,7 +12,22 @@ export const DEFAULT_SETTINGS: Settings = {
   startAtLogin: false,
   lastAreaId: '',
   interfaceMode: 'full',
+  areaSuggest: { enabled: true, minChars: 1, maxItems: 5 },
+  projectSuggest: { enabled: true, minChars: 1, maxItems: 5 },
+  datePicker: true,
+  weekStart: 'monday',
 };
+
+function normalizeSuggest(raw: unknown, fallback: SuggestSettings): SuggestSettings {
+  const input = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+  const count = (value: unknown, min: number) =>
+    typeof value === 'number' && Number.isFinite(value) ? Math.min(Math.max(Math.trunc(value), min), 99) : undefined;
+  return {
+    enabled: typeof input.enabled === 'boolean' ? input.enabled : fallback.enabled,
+    minChars: count(input.minChars, 0) ?? fallback.minChars,
+    maxItems: input.maxItems === null ? null : count(input.maxItems, 1) ?? fallback.maxItems,
+  };
+}
 
 export function normalizeSettings(raw: unknown): Settings {
   const input = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
@@ -29,6 +44,10 @@ export function normalizeSettings(raw: unknown): Settings {
         : input.minimalInterface === true // before 0.1.1 this boolean meant today's "reduced"
           ? 'reduced'
           : 'full',
+    areaSuggest: normalizeSuggest(input.areaSuggest, DEFAULT_SETTINGS.areaSuggest),
+    projectSuggest: normalizeSuggest(input.projectSuggest, DEFAULT_SETTINGS.projectSuggest),
+    datePicker: input.datePicker !== false,
+    weekStart: input.weekStart === 'sunday' ? 'sunday' : 'monday',
   };
 }
 

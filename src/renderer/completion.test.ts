@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { activeToken, applyCompletion, formatToken, rankSuggestions } from './completion';
+import { activeDateCommand, activeToken, applyCompletion, applyDate, formatToken, rankSuggestions } from './completion';
 import { parseCapture } from '../parser';
 
 const AREAS = ['Career & Impact', 'Social', 'Health, Self & Well-being', 'Home & Admin', 'Transition', 'Discovery & Exploration'];
@@ -56,5 +56,46 @@ describe('applyCompletion', () => {
       expect(parsed.title).toBe('Do thing');
       expect(parsed.highlights.some((h) => h.kind === 'area' && input.slice(h.start, h.end) === formatToken('!', name))).toBe(true);
     }
+  });
+});
+
+describe('trigger thresholds and limits', () => {
+  test('minChars 0 opens right after the marker; digits still never open', () => {
+    expect(activeToken('Fix !', 5, '!', 0)).toEqual({ marker: '!', query: '', start: 4, end: 5 });
+    expect(activeToken('Fix !1', 6, '!', 0)).toBeNull();
+  });
+  test('minChars 3 waits for three characters', () => {
+    expect(activeToken('a +we', 5, '+', 3)).toBeNull();
+    expect(activeToken('a +web', 6, '+', 3)?.query).toBe('web');
+  });
+  test('empty query lists everything; null max means no limit', () => {
+    expect(rankSuggestions(AREAS, '', null)).toEqual(AREAS);
+    expect(rankSuggestions(AREAS, '', 2)).toEqual(AREAS.slice(0, 2));
+  });
+  test('+Project completes and parses as the project', () => {
+    const text = 'Draft copy +web';
+    const result = applyCompletion(text, activeToken(text, text.length, '+')!, 'Website Relaunch');
+    expect(result.text).toBe('Draft copy +"Website Relaunch" ');
+    const parsed = parseCapture(result.text, { areas: [], projects: [{ id: 'p9', title: 'Website Relaunch', status: 'active' } as never] });
+    expect(parsed.props.projectId).toBe('p9');
+  });
+});
+
+describe('date commands', () => {
+  test('open right after the colon, slash optional', () => {
+    expect(activeDateCommand('Call mom due:', 13)).toEqual({ command: 'due', at: 13 });
+    expect(activeDateCommand('/start:', 7)).toEqual({ command: 'start', at: 7 });
+    expect(activeDateCommand('x review:', 9)).toEqual({ command: 'review', at: 9 });
+  });
+  test('close once something is typed or the word is not a command', () => {
+    expect(activeDateCommand('due:t', 5)).toBeNull();
+    expect(activeDateCommand('overdue:', 8)).toBeNull();
+    expect(activeDateCommand('due:x', 4)).toBeNull();
+  });
+  test('insert the ISO date and a space', () => {
+    const text = 'Call mom due: @phone';
+    const result = applyDate(text, activeDateCommand(text, 13)!, '2026-10-30');
+    expect(result.text).toBe('Call mom due:2026-10-30 @phone');
+    expect(result.caret).toBe(24);
   });
 });

@@ -274,6 +274,29 @@ describe('extension: bare due: and review:', () => {
         expect(marks(input, r)).toEqual(['date:due:tomorrow']);
     });
 
+    it('start: works bare too', () => {
+        const input = 'start:tomorrow call mom';
+        const r = parseCapture(input, ctx);
+        expect(r.title).toBe('call mom');
+        expect(r.props).toEqual({ startTime: '2026-10-22' });
+        expect(marks(input, r)).toEqual(['date:start:tomorrow']);
+    });
+
+    it.each([
+        ['Ship due:2026-11-03', 'Ship', { dueDate: '2026-11-03' }],
+        ['start:2026-11-03 call mom', 'call mom', { startTime: '2026-11-03' }],
+        ['review:2026-11-03 read it', 'read it', { reviewAt: '2026-11-03' }],
+    ])('takes the ISO date the date picker inserts: %s', (input, title, props) => {
+        const r = parseCapture(input, ctx);
+        expect(r.title).toBe(title);
+        expect(r.props).toEqual(props);
+    });
+
+    it('overstart: is not a command', () => {
+        // (core's own natural-language detection still finds "tomorrow" as a due date)
+        expect(parseCapture('overstart:tomorrow', ctx).props.startTime).toBeUndefined();
+    });
+
     it('review:next friday takes a natural-language value', () => {
         const input = 'Plan review:next friday';
         const r = parseCapture(input, ctx);

@@ -42,6 +42,14 @@ export interface KnownTokens {
 
 export type InterfaceMode = 'full' | 'reduced' | 'minimal';
 
+export interface SuggestSettings {
+  enabled: boolean;
+  /** Characters after the marker before the list opens (0 = right away). */
+  minChars: number;
+  /** Most entries shown; null = all. */
+  maxItems: number | null;
+}
+
 export interface Settings {
   /** Electron accelerator, e.g. "Control+Alt+Space". */
   hotkey: string;
@@ -56,6 +64,13 @@ export interface Settings {
    * minimal: just the input and preview (Bulk add keeps its buttons).
    */
   interfaceMode: InterfaceMode;
+  /** `!Area` suggestions. */
+  areaSuggest: SuggestSettings;
+  /** `+Project` suggestions. */
+  projectSuggest: SuggestSettings;
+  /** Calendar after `due:`, `start:` and `review:`. */
+  datePicker: boolean;
+  weekStart: 'monday' | 'sunday';
 }
 
 export interface ConnectionInfo {
