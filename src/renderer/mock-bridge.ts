@@ -40,7 +40,7 @@ export function createMockBridge(): QuickAddBridge {
     apiToken: null,
     startAtLogin: false,
     lastAreaId: '',
-    minimalInterface: false,
+    interfaceMode: 'full',
   };
   const showListeners = new Set<(event: ShowEvent) => void>();
   document.documentElement.classList.add('web-mock');

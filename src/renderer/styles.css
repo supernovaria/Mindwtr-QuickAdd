@@ -52,7 +52,7 @@ html, body {
   -webkit-font-smoothing: antialiased;
 }
 
-body { padding: 8px; } /* matches BODY_MARGIN in App.tsx */
+body { padding: 8px; min-height: 100vh; box-sizing: border-box; } /* matches BODY_MARGIN in App.tsx; fills the window so the "…" menu is not clipped */
 
 /* Plain browser tab (npm run dev:web): show the card on a backdrop, window-sized. */
 html.web-mock, html.web-mock body { background: #94a3b8; overflow: auto; }
@@ -395,3 +395,4 @@ button:disabled { cursor: not-allowed; }
 .suggest li.active { background: var(--accent-tint); color: var(--primary); }
 .suggest-marker { opacity: 0.6; }
 .suggest-hint { padding: 4px 8px 2px; font-size: 11px; color: var(--muted-foreground); }
+.footer-row-end { justify-content: flex-end; }

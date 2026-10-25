@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { KeyboardEvent } from 'react';
-import type { ConnectionInfo, Settings } from '../../preload/api';
+import type { ConnectionInfo, InterfaceMode, Settings } from '../../preload/api';
 import { bridge } from '../bridge';
 
 const MODIFIER_KEYS = new Set(['Control', 'Shift', 'Alt', 'Meta', 'AltGraph']);
@@ -46,7 +46,7 @@ export function SettingsView({ onDone, onSaved }: Props) {
   const [port, setPort] = useState('');
   const [token, setToken] = useState('');
   const [startAtLogin, setStartAtLogin] = useState(false);
-  const [minimalInterface, setMinimalInterface] = useState(false);
+  const [interfaceMode, setInterfaceMode] = useState<InterfaceMode>('full');
   const [info, setInfo] = useState<ConnectionInfo | null>(null);
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
   const [recordingKey, setRecordingKey] = useState(false);
@@ -58,7 +58,7 @@ export function SettingsView({ onDone, onSaved }: Props) {
       setPort(s.apiPort ? String(s.apiPort) : '');
       setToken(s.apiToken ?? '');
       setStartAtLogin(s.startAtLogin);
-      setMinimalInterface(s.minimalInterface);
+      setInterfaceMode(s.interfaceMode);
     });
     void bridge.connectionInfo().then(setInfo);
   }, []);
@@ -74,7 +74,7 @@ export function SettingsView({ onDone, onSaved }: Props) {
       apiPort: portNumber,
       apiToken: token.trim() || null,
       startAtLogin,
-      minimalInterface,
+      interfaceMode,
     });
     setSettings(result.settings);
     setHotkey(result.settings.hotkey);
@@ -156,9 +156,13 @@ export function SettingsView({ onDone, onSaved }: Props) {
         <input type="checkbox" checked={startAtLogin} onChange={(e) => setStartAtLogin(e.target.checked)} />
         <span>Start QuickAdd when I sign in{bridge.isElectron ? '' : ' (desktop app only)'}</span>
       </label>
-      <label className="checkbox">
-        <input type="checkbox" checked={minimalInterface} onChange={(e) => setMinimalInterface(e.target.checked)} />
-        <span>Minimal interface (hide the example line, show syntax help as "?")</span>
+      <label className="area-row">
+        <span className="field-label">Interface</span>
+        <select className="select" value={interfaceMode} onChange={(e) => setInterfaceMode(e.target.value as InterfaceMode)}>
+          <option value="full">Full</option>
+          <option value="reduced">Reduced: no example line, syntax help as "?"</option>
+          <option value="minimal">Minimal: just the input (no area, help or buttons)</option>
+        </select>
       </label>
       {message ? (
         <p className={message.error ? 'error-text' : 'ok-text'} role={message.error ? 'alert' : 'status'}>

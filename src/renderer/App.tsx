@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { Area, Attachment, Project } from '../../vendor/mindwtr-core/src/types';
-import type { ApiError, CreateTaskInput, CreateTaskOutcome, KnownTokens, View } from '../preload/api';
+import type { ApiError, CreateTaskInput, CreateTaskOutcome, InterfaceMode, KnownTokens, View } from '../preload/api';
 import { bridge } from './bridge';
 import {
   bulkHighlights,
@@ -38,7 +38,7 @@ export function App() {
   const [helpOpen, setHelpOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [recording, setRecording] = useState(false);
-  const [minimal, setMinimal] = useState(false);
+  const [ui, setUi] = useState<InterfaceMode>('full');
 
   const cardRef = useRef<HTMLDivElement>(null);
   const fieldRef = useRef<HighlightedFieldHandle>(null);
@@ -59,7 +59,7 @@ export function App() {
     void refresh();
     void bridge.getSettings().then((s) => {
       setAreaId(s.lastAreaId);
-      setMinimal(s.minimalInterface);
+      setUi(s.interfaceMode);
     });
   }, [refresh]);
 
@@ -73,7 +73,7 @@ export function App() {
         setMenuOpen(false);
         if (event.bulkText !== undefined) setBulkText(event.bulkText);
         if (event.notice) setStatus({ kind: 'error', text: event.notice });
-        const next = event.view ?? (view === 'settings' ? 'text' : view);
+        const next = event.view ?? 'text';
         setView(next);
         focusInput(next);
         void refresh();
@@ -82,15 +82,26 @@ export function App() {
   );
 
   // ---- auto-fit window height --------------------------------------------
+  // The window also has to fit the open "…" menu, which can hang below a short card.
+  const reportSize = useCallback(() => {
+    const card = cardRef.current;
+    if (!card) return;
+    const rect = card.getBoundingClientRect();
+    const menu = card.querySelector('[role="menu"]');
+    const bottom = menu ? Math.max(rect.bottom, menu.getBoundingClientRect().bottom + 8) : rect.bottom;
+    bridge.resize(Math.ceil(bottom - rect.top) + BODY_MARGIN * 2);
+  }, []);
+
   useLayoutEffect(() => {
     const card = cardRef.current;
     if (!card) return;
-    const report = () => bridge.resize(Math.ceil(card.getBoundingClientRect().height) + BODY_MARGIN * 2);
-    report();
-    const observer = new ResizeObserver(report);
+    reportSize();
+    const observer = new ResizeObserver(reportSize);
     observer.observe(card);
     return () => observer.disconnect();
-  }, []);
+  }, [reportSize]);
+
+  useLayoutEffect(reportSize, [menuOpen, reportSize]);
 
   // ---- parsing --------------------------------------------------------------
   const ctx: CaptureContext = useMemo(
@@ -247,6 +258,7 @@ export function App() {
   const onMenu = (action: MenuAction) => {
     setStatus(null);
     if (action === 'import') void importTxt();
+    else if (action === 'single') leaveBulk();
     else if (action === 'bulk') {
       if (view === 'text' && text.trim() && !bulkText.trim()) setBulkText(text);
       setView('bulk');
@@ -254,6 +266,12 @@ export function App() {
     } else if (action === 'settings') setView('settings');
     else bridge.quit();
   };
+
+  function leaveBulk() {
+    setStatus(null);
+    setView('text');
+    focusInput('text');
+  }
 
   const changeArea = (next: string) => {
     setAreaId(next);
@@ -266,11 +284,12 @@ export function App() {
       if (e.key !== 'Escape' || e.defaultPrevented) return;
       e.preventDefault();
       if (menuOpen) setMenuOpen(false);
+      else if (view === 'bulk') leaveBulk();
       else if (!recording) hide();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [menuOpen, recording, hide]);
+  });
 
   // ---- render -------------------------------------------------------------------
   const title = view === 'bulk' ? 'Bulk add' : view === 'settings' ? 'Settings' : 'Add Task';
@@ -310,7 +329,7 @@ export function App() {
   const helpToggle = (
     <button type="button" className="disclosure" aria-expanded={helpOpen} onClick={() => setHelpOpen((o) => !o)}>
       <span className="disclosure-caret" aria-hidden="true">▸</span>
-      {minimal ? <span aria-label="Quick Add syntax help" title="Quick Add syntax help">?</span> : 'Quick Add syntax help'}
+      {ui === 'full' ? 'Quick Add syntax help' : <span aria-label="Quick Add syntax help" title="Quick Add syntax help">?</span>}
     </button>
   );
 
@@ -348,9 +367,10 @@ export function App() {
         modeLocked={recording || submitting}
         audioDisabledReason={audioUnsupported}
         onMenu={onMenu}
-        onClose={hide}
+        onClose={view === 'bulk' ? leaveBulk : hide}
         menuOpen={menuOpen}
         setMenuOpen={setMenuOpen}
+        inBulk={view === 'bulk'}
       />
 
       {view === 'settings' ? (
@@ -361,7 +381,7 @@ export function App() {
           }}
           onSaved={() => {
             void refresh();
-            void bridge.getSettings().then((s) => setMinimal(s.minimalInterface));
+            void bridge.getSettings().then((s) => setUi(s.interfaceMode));
           }}
         />
       ) : view === 'bulk' ? (
@@ -401,7 +421,7 @@ export function App() {
               {bulkLines.length > 50 ? <div className="muted bulk-more">+{bulkLines.length - 50} more</div> : null}
             </div>
           ) : null}
-          {areaSelect}
+          {ui === 'minimal' ? null : areaSelect}
           {errorBanner}
           <div className="footer-row">
             <span className="muted">
@@ -413,11 +433,8 @@ export function App() {
                 type="button"
                 className="btn btn-muted"
                 disabled={submitting}
-                onClick={() => {
-                  setStatus(null);
-                  setView('text');
-                  focusInput('text');
-                }}
+                title="Back to a single task (Esc)"
+                onClick={leaveBulk}
               >
                 Cancel
               </button>
@@ -478,22 +495,28 @@ export function App() {
             {starButton}
           </HighlightedField>
           <PreviewChips chips={chips} />
-          {areaSelect}
-          {minimal ? null : <p className="muted small">{QUICK_ADD_EXAMPLE}</p>}
+          {ui === 'minimal' ? null : areaSelect}
+          {ui === 'full' ? <p className="muted small">{QUICK_ADD_EXAMPLE}</p> : null}
           {errorBanner}
-          <div className="footer-row">
-            {helpToggle}
-            <div className="actions">
-              {statusLine}
-              <button type="button" className="btn btn-muted" disabled={submitting} onClick={hide}>
-                Cancel
-              </button>
-              <button type="submit" className="btn btn-primary" disabled={submitting || !text.trim()} title="Enter">
-                {submitting ? 'Saving…' : 'Save'}
-              </button>
-            </div>
-          </div>
-          {helpOpen ? <SyntaxHelpContent /> : null}
+          {ui === 'minimal' ? (
+            statusLine ? <div className="footer-row footer-row-end">{statusLine}</div> : null
+          ) : (
+            <>
+              <div className="footer-row">
+                {helpToggle}
+                <div className="actions">
+                  {statusLine}
+                  <button type="button" className="btn btn-muted" disabled={submitting} onClick={hide}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="btn btn-primary" disabled={submitting || !text.trim()} title="Enter">
+                    {submitting ? 'Saving…' : 'Save'}
+                  </button>
+                </div>
+              </div>
+              {helpOpen ? <SyntaxHelpContent /> : null}
+            </>
+          )}
         </form>
       )}
     </div>

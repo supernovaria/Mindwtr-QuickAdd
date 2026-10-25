@@ -11,7 +11,7 @@ export const DEFAULT_SETTINGS: Settings = {
   apiToken: null,
   startAtLogin: false,
   lastAreaId: '',
-  minimalInterface: false,
+  interfaceMode: 'full',
 };
 
 export function normalizeSettings(raw: unknown): Settings {
@@ -23,7 +23,12 @@ export function normalizeSettings(raw: unknown): Settings {
     apiToken: typeof input.apiToken === 'string' && input.apiToken.trim() ? input.apiToken.trim() : null,
     startAtLogin: input.startAtLogin === true,
     lastAreaId: typeof input.lastAreaId === 'string' ? input.lastAreaId : '',
-    minimalInterface: input.minimalInterface === true,
+    interfaceMode:
+      input.interfaceMode === 'reduced' || input.interfaceMode === 'minimal'
+        ? input.interfaceMode
+        : input.minimalInterface === true // before 0.1.1 this boolean meant today's "reduced"
+          ? 'reduced'
+          : 'full',
   };
 }
 

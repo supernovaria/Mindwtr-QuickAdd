@@ -40,6 +40,8 @@ export interface KnownTokens {
   tags: string[];
 }
 
+export type InterfaceMode = 'full' | 'reduced' | 'minimal';
+
 export interface Settings {
   /** Electron accelerator, e.g. "Control+Alt+Space". */
   hotkey: string;
@@ -49,8 +51,11 @@ export interface Settings {
   startAtLogin: boolean;
   /** Area last chosen in the Area select ("" = no area). */
   lastAreaId: string;
-  /** Hides the example line and shortens the syntax-help toggle to "?". */
-  minimalInterface: boolean;
+  /**
+   * full: everything. reduced: no example line, syntax help toggle is "?".
+   * minimal: just the input and preview (Bulk add keeps its buttons).
+   */
+  interfaceMode: InterfaceMode;
 }
 
 export interface ConnectionInfo {

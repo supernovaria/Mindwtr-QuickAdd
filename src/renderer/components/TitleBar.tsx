@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 export type CaptureMode = 'text' | 'audio';
-export type MenuAction = 'import' | 'bulk' | 'settings' | 'quit';
+export type MenuAction = 'import' | 'bulk' | 'single' | 'settings' | 'quit';
 
 interface Props {
   title: string;
@@ -13,11 +13,17 @@ interface Props {
   onClose: () => void;
   menuOpen: boolean;
   setMenuOpen: (open: boolean) => void;
+  /** In Bulk add the menu offers the way back to a single task instead. */
+  inBulk?: boolean;
 }
 
-const MENU: Array<{ action: MenuAction; label: string; hint?: string }> = [
+type MenuItem = { action: MenuAction; label: string; hint?: string };
+
+const menuFor = (inBulk: boolean): MenuItem[] => [
   { action: 'import', label: 'Import .txt…' },
-  { action: 'bulk', label: 'Bulk add', hint: 'Ctrl+Enter saves' },
+  inBulk
+    ? { action: 'single', label: 'Single task', hint: 'Esc' }
+    : { action: 'bulk', label: 'Bulk add', hint: 'Ctrl+Enter saves' },
   { action: 'settings', label: 'Settings' },
   { action: 'quit', label: 'Quit QuickAdd' },
 ];
@@ -32,7 +38,9 @@ export function TitleBar({
   onClose,
   menuOpen,
   setMenuOpen,
+  inBulk = false,
 }: Props) {
+  const MENU = menuFor(inBulk);
   const menuRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(0);
 
