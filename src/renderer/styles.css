@@ -57,7 +57,7 @@ body { padding: 8px; min-height: 100vh; box-sizing: border-box; } /* matches BOD
 /* Plain browser tab (npm run dev:web): show the card on a backdrop, window-sized. */
 html.web-mock, html.web-mock body { background: #94a3b8; overflow: auto; }
 @media (prefers-color-scheme: dark) { html.web-mock, html.web-mock body { background: #1e293b; } }
-html.web-mock #root { width: 564px; margin: 10vh auto 0; }
+html.web-mock #root { width: 644px; margin: 10vh auto 0; }
 
 button, input, select, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; }
@@ -427,7 +427,7 @@ button:disabled { cursor: not-allowed; }
 .datepicker-grid button.today { border-color: var(--foreground); font-weight: 600; }
 .datepicker-grid button.in-range { background: var(--accent-tint); border-radius: 0; }
 .datepicker-grid button.selected { background: var(--primary); color: var(--primary-foreground); border-radius: 6px; }
-.datepicker .suggest-hint { padding: 4px 2px 2px; line-height: 15px; }
+.datepicker .suggest-hint { padding: 4px 2px 2px; line-height: 15px; opacity: 0.7; }
 
 /* ---- settings: "While typing" group ---- */
 .settings-group { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; border: 0; }
@@ -467,9 +467,9 @@ button:disabled { cursor: not-allowed; }
 
 /* ---- calendar side panel (dimmed so it stays out of the way) ---- */
 .datepicker-body { display: flex; gap: 12px; align-items: flex-start; }
-.datepicker-cal { flex: 0 0 300px; }
+.datepicker-cal { flex: 0 0 276px; }
 .datepicker-dot { position: absolute; left: 50%; bottom: 2px; width: 3px; height: 3px; margin-left: -1.5px; border-radius: 50%; background: currentColor; opacity: 0.55; }
-.datepicker-side { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10px; padding: 4px 2px 0 10px; border-left: 1px solid var(--border); color: var(--muted-foreground); font-size: 12px; opacity: 0.85; }
+.datepicker-side { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10px; padding: 4px 2px 0 10px; border-left: 1px solid var(--border); color: var(--muted-foreground); font-size: 12px; opacity: 0.7; }
 .side-when { margin: 0; font-size: 13px; }
 .side-picks { display: flex; flex-wrap: wrap; gap: 4px; }
 .side-pick { padding: 2px 8px; border: 1px solid var(--border); border-radius: 999px; background: transparent; font-size: 11px; color: var(--muted-foreground); }
@@ -479,3 +479,4 @@ button:disabled { cursor: not-allowed; }
 .side-due ul { margin: 0; padding: 0 0 0 14px; }
 .side-due li { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .side-due-none, .side-due-more { font-style: italic; opacity: 0.8; list-style: none; }
+.panel-toggles { flex-wrap: wrap; gap: 4px 12px; padding-left: 26px; }

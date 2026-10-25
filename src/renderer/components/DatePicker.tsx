@@ -4,6 +4,7 @@
 // drag = a start–due range). Beside the grid, a quiet side panel says how far
 // away the selection is, offers one-click dates, and lists what is already due.
 import { useEffect, useState } from 'react';
+import type { CalendarPanelSettings } from '../../preload/api';
 import { addMonths, describeDates, monthGrid, quickPicks, rowWeekNumber, sameDay, startOfDay, toIsoDate, weekdayLabels, type WeekStart } from '../calendar';
 
 interface Props {
@@ -27,7 +28,11 @@ interface Props {
   onNavigate: (date: Date) => void;
   /** Titles of open tasks due on each date (YYYY-MM-DD). */
   dueByDate?: Map<string, string[]>;
+  /** Which parts of the side panel to show; all by default. */
+  panel?: CalendarPanelSettings;
 }
+
+const ALL_PANEL: CalendarPanelSettings = { when: true, picks: true, due: true };
 
 const MAX_DUE_LISTED = 4;
 
@@ -35,7 +40,7 @@ const COMMAND_LABEL = { start: 'Start', due: 'Due', review: 'Review' } as const;
 
 const ordered = (a: Date, b: Date): [Date, Date] => (a <= b ? [a, b] : [b, a]);
 
-export function DatePicker({ command, selected, anchor, today, weekStart, allowRange, tentative, tabOnly, onPick, onPickRange, onCycleCommand, onNavigate, dueByDate }: Props) {
+export function DatePicker({ command, selected, anchor, today, weekStart, allowRange, tentative, tabOnly, onPick, onPickRange, onCycleCommand, onNavigate, dueByDate, panel = ALL_PANEL }: Props) {
   const [drag, setDrag] = useState<{ from: Date; to: Date } | null>(null);
 
   // A drag released outside the calendar is cancelled.
@@ -172,8 +177,12 @@ export function DatePicker({ command, selected, anchor, today, weekStart, allowR
         </tbody>
       </table>
       </div>
+      {panel.when || panel.picks || panel.due ? (
       <aside className="datepicker-side" aria-label="About this date">
-        <p className="side-when">{range ? describeDates(today, range[0], range[1]) : describeDates(today, shown)}</p>
+        {panel.when ? (
+          <p className="side-when">{range ? describeDates(today, range[0], range[1]) : describeDates(today, shown)}</p>
+        ) : null}
+        {panel.picks ? (
         <div className="side-picks">
           {quickPicks(today).map((pick) => (
             <button
@@ -191,6 +200,8 @@ export function DatePicker({ command, selected, anchor, today, weekStart, allowR
             </button>
           ))}
         </div>
+        ) : null}
+        {panel.due ? (
         <div className="side-due">
           <span className="side-due-head">
             Due {sameDay(shown, today) ? 'today' : shown.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })}
@@ -206,7 +217,9 @@ export function DatePicker({ command, selected, anchor, today, weekStart, allowR
             </ul>
           )}
         </div>
+        ) : null}
       </aside>
+      ) : null}
       </div>
       <div className="suggest-hint">
         Arrows move · Ctrl+←→ month · Ctrl+↑↓ top/bottom

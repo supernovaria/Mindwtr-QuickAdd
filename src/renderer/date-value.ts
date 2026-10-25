@@ -2,6 +2,7 @@
 // `/review:2026-11-03`, `start:next mon`), resolved the way Mindwtr's quick-add
 // parser reads it, so the calendar can show which day that is.
 import { parseQuickAddDateCommands } from '../../vendor/mindwtr-core/src/quick-add';
+import { expandDateAlias } from '../parser/prepass';
 import { startOfDay } from './calendar';
 import type { ActiveDateCommand, DateCommand } from './completion';
 
@@ -22,7 +23,7 @@ export interface TypedDateCommand extends ActiveDateCommand {
 
 /** The local day core resolves `<command>:<value>` to, or null if it isn't a date. */
 export function resolveDateValue(command: DateCommand, value: string, now: Date): Date | null {
-  const text = value.trim();
+  const text = expandDateAlias(value.trim());
   if (!text) return null;
   const parsed = parseQuickAddDateCommands(`/${command}:${text}`, now);
   const raw = parsed.props[FIELD[command]];

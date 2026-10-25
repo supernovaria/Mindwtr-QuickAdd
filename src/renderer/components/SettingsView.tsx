@@ -54,6 +54,7 @@ export function SettingsView({ onDone, onSaved }: Props) {
   const [datePicker, setDatePicker] = useState(true);
   const [weekStart, setWeekStart] = useState<Settings['weekStart']>('monday');
   const [tabCompletion, setTabCompletion] = useState(true);
+  const [calendarPanel, setCalendarPanel] = useState<Settings['calendarPanel']>({ when: true, picks: true, due: true });
   const [clipboardLinks, setClipboardLinks] = useState(true);
   const [info, setInfo] = useState<ConnectionInfo | null>(null);
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
@@ -74,6 +75,7 @@ export function SettingsView({ onDone, onSaved }: Props) {
       setDatePicker(s.datePicker);
       setWeekStart(s.weekStart);
       setTabCompletion(s.tabCompletion);
+      setCalendarPanel(s.calendarPanel);
       setClipboardLinks(s.clipboardLinks);
     });
     void bridge.connectionInfo().then(setInfo);
@@ -106,6 +108,7 @@ export function SettingsView({ onDone, onSaved }: Props) {
       datePicker,
       weekStart,
       tabCompletion,
+      calendarPanel,
       clipboardLinks,
     });
     setSettings(result.settings);
@@ -206,6 +209,24 @@ export function SettingsView({ onDone, onSaved }: Props) {
           <input type="checkbox" checked={datePicker} onChange={(e) => setDatePicker(e.target.checked)} />
           <span>Calendar after due:, start: and review:</span>
         </label>
+        <div className="inline-field panel-toggles">
+          <span>Beside it:</span>
+          {([
+            ['when', 'how far away'],
+            ['picks', 'quick dates'],
+            ['due', 'what’s due that day'],
+          ] as const).map(([key, label]) => (
+            <label key={key} className="checkbox">
+              <input
+                type="checkbox"
+                disabled={!datePicker}
+                checked={calendarPanel[key]}
+                onChange={(e) => setCalendarPanel({ ...calendarPanel, [key]: e.target.checked })}
+              />
+              <span>{label}</span>
+            </label>
+          ))}
+        </div>
         <label className="checkbox">
           <input type="checkbox" checked={tabCompletion} onChange={(e) => setTabCompletion(e.target.checked)} />
           <span>Tab completes commands (d → due:, press again to cycle)</span>

@@ -55,6 +55,7 @@ export function createMockBridge(): QuickAddBridge {
     datePicker: true,
     weekStart: 'monday',
     tabCompletion: true,
+    calendarPanel: { when: true, picks: true, due: true },
     clipboardLinks: true,
   };
   const showListeners = new Set<(event: ShowEvent) => void>();

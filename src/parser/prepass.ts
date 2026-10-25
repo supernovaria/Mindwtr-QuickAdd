@@ -6,10 +6,23 @@
 //   ` !1`..` !4`        removed here; applied as priority after core runs
 //   `[label](url)`      replaced by the label (escaped, so it stays plain text)
 //   bare `start:`/`due:`/`review:` get the leading `/` core expects
+//   date shorthands (`due:td`, `due:tmrw`) are spelled out for core
 
 import type { TaskPriority } from '../../vendor/mindwtr-core/src/types';
 import { parseQuickAddDateCommands } from '../../vendor/mindwtr-core/src/quick-add';
 import { ESCAPE_CHARS, commandValueEnd, maskEscapes } from './text';
+
+/** Short date values for start:/due:/review:, spelled out before core reads them. */
+export const DATE_ALIASES: Record<string, string> = {
+    td: 'today',
+    tdy: 'today',
+    tmrw: 'tomorrow',
+    tmr: 'tomorrow',
+};
+const DATE_ALIAS_RE = new RegExp(String.raw`(?:^|\s)(\/?(?:start|due|review):)(${Object.keys(DATE_ALIASES).join('|')})(?=\s|$)`, 'gi');
+
+/** The value with a shorthand (`td`, `tmrw`) spelled out; anything else unchanged. */
+export const expandDateAlias = (value: string) => DATE_ALIASES[value.trim().toLowerCase()] ?? value;
 
 export const SHORTHAND_PRIORITIES: Record<string, TaskPriority> = {
     '1': 'urgent',
@@ -140,6 +153,21 @@ export function prepass(raw: string, options: PrepassOptions, now: Date): Prepas
         }
     }
 
+    // `due:td` → `due:today`, `start:tmrw` → `start:tomorrow`. The spelled-out
+    // characters all map back onto the shorthand, so highlights still fit.
+    for (const match of masked.matchAll(DATE_ALIAS_RE)) {
+        const valueStart = (match.index ?? 0) + match[0].length - match[2].length;
+        if (insideMarkdown(valueStart)) continue;
+        const word = DATE_ALIASES[match[2].toLowerCase()];
+        const last = valueStart + match[2].length - 1;
+        edits.push({
+            start: valueStart,
+            end: valueStart + match[2].length,
+            out: [...word].map((ch, i): [string, number] => [ch, Math.min(valueStart + i, last)]),
+            order: order++,
+        });
+    }
+
     const bare = (command: 'start' | 'due' | 'review'): { rawStart: number } | undefined => {
         if (new RegExp(String.raw`(?:^|\s)\/${command}:`, 'i').test(masked)) return undefined;
         const re = new RegExp(String.raw`(?:^|\s)(${command}:)(?=\S)`, 'gi');
@@ -180,8 +208,15 @@ export function prepass(raw: string, options: PrepassOptions, now: Date): Prepas
     }
     map.push(raw.length);
 
+    // Splitting one command moves its trailing words in front of it, which can
+    // land them inside an earlier command's value ("start:X due:Y test" puts
+    // "test" after start:X), so repeat until nothing moves.
     let current = { text, map };
-    for (const command of DATE_COMMANDS) current = splitDateCommand(current.text, current.map, command, now, markdownLinks);
+    for (let pass = 0; pass < DATE_COMMANDS.length + 1; pass += 1) {
+        const before = current.text;
+        for (const command of DATE_COMMANDS) current = splitDateCommand(current.text, current.map, command, now, markdownLinks);
+        if (current.text === before) break;
+    }
 
     return { text: current.text, map: current.map, markdownLinks, priority, bareStart, bareDue, bareReview };
 }

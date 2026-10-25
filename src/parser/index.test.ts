@@ -469,3 +469,36 @@ describe('props contract', () => {
         for (const input of inputs) expectWellFormed(parseCapture(input, ctx).highlights, input.length);
     });
 });
+
+describe('date commands: combinations and shorthands', () => {
+    it('start: keeps working when text follows a later due:', () => {
+        const input = 'start:2026-10-21 due:2026-10-24 test';
+        const r = parseCapture(input, ctx);
+        expect(r.title).toBe('test');
+        expect(r.props).toEqual({ startTime: '2026-10-21', dueDate: '2026-10-24' });
+        expect(marks(input, r)).toEqual(['date:start:2026-10-21', 'date:due:2026-10-24']);
+    });
+
+    it('three date commands, each followed by title words', () => {
+        const r = parseCapture('/start:tomorrow /due:fri x review:mon y', ctx);
+        expect(r.title).toBe('x y');
+        expect(r.props).toEqual({ startTime: '2026-10-22', dueDate: '2026-10-23', reviewAt: '2026-10-26' });
+    });
+
+    it.each([
+        ['Call due:td', { dueDate: '2026-10-21' }, 'date:due:td'],
+        ['Call due:tmrw', { dueDate: '2026-10-22' }, 'date:due:tmrw'],
+        ['Call /start:tmr', { startTime: '2026-10-22' }, 'date:/start:tmr'],
+        ['review:TD read', { reviewAt: '2026-10-21' }, 'date:review:TD'],
+    ])('%s', (input, props, mark) => {
+        const r = parseCapture(input, ctx);
+        expect(r.props).toEqual(props);
+        expect(marks(input, r)).toEqual([mark]);
+        expectWellFormed(r.highlights, input.length);
+    });
+
+    it('td only counts as a date command value', () => {
+        expect(parseCapture('Buy td stuff', ctx).title).toBe('Buy td stuff');
+        expect(parseCapture('due:tdx', ctx).props.dueDate).toBeUndefined();
+    });
+});

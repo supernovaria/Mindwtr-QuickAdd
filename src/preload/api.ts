@@ -44,6 +44,15 @@ export interface KnownTokens {
 
 export type InterfaceMode = 'full' | 'reduced' | 'minimal';
 
+export interface CalendarPanelSettings {
+  /** "in 5 days" / "starting in …, N days total". */
+  when: boolean;
+  /** Today / Tomorrow / This weekend / … buttons. */
+  picks: boolean;
+  /** Open tasks already due on the selected day. */
+  due: boolean;
+}
+
 export interface SuggestSettings {
   enabled: boolean;
   /** Characters after the marker before the list opens (0 = right away). */
@@ -79,6 +88,8 @@ export interface Settings {
   weekStart: 'monday' | 'sunday';
   /** Tab completes commands (`d` → `due:`) and cycles on repeat. */
   tabCompletion: boolean;
+  /** Which parts of the calendar's side panel show (`due` also draws the dots on busy days). */
+  calendarPanel: CalendarPanelSettings;
   /** Offer a URL on the clipboard as a link when the window opens. */
   clipboardLinks: boolean;
 }

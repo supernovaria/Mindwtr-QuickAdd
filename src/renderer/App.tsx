@@ -45,7 +45,7 @@ export function App() {
   /** Index of the history entry the field holds, until the user edits it. */
   const [recalled, setRecalled] = useState<number | null>(null);
   const [clipLink, setClipLink] = useState<string | null>(null);
-  const [typing, setTyping] = useState<Pick<Settings, 'areaSuggest' | 'projectSuggest' | 'contextSuggest' | 'tagSuggest' | 'datePicker' | 'weekStart' | 'tabCompletion'> | null>(null);
+  const [typing, setTyping] = useState<Pick<Settings, 'areaSuggest' | 'projectSuggest' | 'contextSuggest' | 'tagSuggest' | 'datePicker' | 'weekStart' | 'tabCompletion' | 'calendarPanel'> | null>(null);
 
   const cardRef = useRef<HTMLDivElement>(null);
   const fieldRef = useRef<HighlightedFieldHandle>(null);
@@ -150,8 +150,15 @@ export function App() {
     return byDate;
   }, [known.due]);
   const datePicker = useMemo(
-    () => (typing?.datePicker ? { weekStart: typing.weekStart, dueByDate } : undefined),
-    [typing?.datePicker, typing?.weekStart, dueByDate],
+    () =>
+      typing?.datePicker
+        ? {
+            weekStart: typing.weekStart,
+            panel: typing.calendarPanel,
+            dueByDate: typing.calendarPanel.due ? dueByDate : undefined,
+          }
+        : undefined,
+    [typing?.datePicker, typing?.weekStart, typing?.calendarPanel, dueByDate],
   );
   const bulkLines = useMemo(
     () => (view === 'bulk' ? safeParseBulk(bulkText, ctx, defaults) : []),

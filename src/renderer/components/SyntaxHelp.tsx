@@ -7,7 +7,7 @@ export const QUICK_ADD_HELP =
   'Quick add supports /start:<when>, /due:<when>, /review:<when>, /estimate:45m, /note:<text>, /link:<url>, /energy:<level>, /priority:<level>, /next, /* focus, /area:<name> or !Area, @context, #tag, +Project, %Person (or %"Full Name"). Due dates stay date-only unless you include a time.';
 
 export const QUICK_ADD_EXTRAS =
-  'Also: !1 !2 !3 !4 for urgent/high/medium/low priority, due:<when> and review:<when> without the slash, and [label](https://…) links.';
+  'Also: !1 !2 !3 !4 for urgent/high/medium/low priority, start:/due:/review:<when> without the slash (td = today, tmrw = tomorrow), and [label](https://…) links.';
 
 export const QUICK_ADD_EXAMPLE = 'e.g. Call mom /due:tomorrow @phone';
 

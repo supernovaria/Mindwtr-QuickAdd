@@ -9,6 +9,7 @@ import { activeDateCommand, activeToken, applyCompletion, applyDate, applyDateRa
 import { addDays, addMonths, firstSameWeekday, lastSameWeekday, sameDay, startOfDay, toIsoDate, type WeekStart } from '../calendar';
 import { typedDateCommand, type TypedDateCommand } from '../date-value';
 import { DatePicker } from './DatePicker';
+import type { CalendarPanelSettings } from '../../preload/api';
 
 /** Names offered while typing `<marker><name>`, e.g. areas after `!`. */
 export interface CompletionSource {
@@ -36,7 +37,7 @@ interface Props {
   children?: ReactNode;
   completions?: CompletionSource[];
   /** Calendar after an empty `due:`/`start:`/`review:`; omit to turn it off. */
-  datePicker?: { weekStart: WeekStart; dueByDate?: Map<string, string[]> };
+  datePicker?: { weekStart: WeekStart; panel?: CalendarPanelSettings; dueByDate?: Map<string, string[]> };
   /** Tab completes commands (`d` → `due:`); pressing it again cycles. */
   tabComplete?: boolean;
   /** Keeps the popups closed, e.g. while the text is a recalled history entry. */
@@ -346,6 +347,7 @@ export const HighlightedField = forwardRef<HighlightedFieldHandle, Props>(functi
         today={startOfDay(new Date())}
         weekStart={datePicker.weekStart}
         dueByDate={datePicker.dueByDate}
+        panel={datePicker.panel}
         allowRange={rangeAllowed}
         tentative={tentative}
         tabOnly={typed !== null}

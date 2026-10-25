@@ -19,8 +19,14 @@ export const DEFAULT_SETTINGS: Settings = {
   datePicker: true,
   weekStart: 'monday',
   tabCompletion: true,
+  calendarPanel: { when: true, picks: true, due: true },
   clipboardLinks: true,
 };
+
+function normalizeCalendarPanel(raw: unknown): Settings['calendarPanel'] {
+  const input = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+  return { when: input.when !== false, picks: input.picks !== false, due: input.due !== false };
+}
 
 function normalizeSuggest(raw: unknown, fallback: SuggestSettings): SuggestSettings {
   const input = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
@@ -55,6 +61,7 @@ export function normalizeSettings(raw: unknown): Settings {
     datePicker: input.datePicker !== false,
     weekStart: input.weekStart === 'sunday' ? 'sunday' : 'monday',
     tabCompletion: input.tabCompletion !== false,
+    calendarPanel: normalizeCalendarPanel(input.calendarPanel),
     clipboardLinks: input.clipboardLinks !== false,
   };
 }

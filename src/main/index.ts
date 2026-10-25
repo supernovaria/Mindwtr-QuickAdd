@@ -23,7 +23,7 @@ import { drawIconBgra } from './icon';
 import { LocalApiClient } from './local-api-client';
 import { SettingsStore } from './settings';
 
-const WINDOW_WIDTH = 580;
+const WINDOW_WIDTH = 660;
 const MIN_HEIGHT = 120;
 /** When the mindwtr:// link is sent after Add & Edit (ms after saving), see IPC.openTask. */
 const OPEN_TASK_SEND_TIMES_MS = [1500, 4500, 9000];
