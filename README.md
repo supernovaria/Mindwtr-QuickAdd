@@ -4,7 +4,9 @@ A small always-on-top quick-capture window for [Mindwtr](https://github.com/dong
 on Windows. Press a global shortcut, type a task in Mindwtr's Quick Add syntax, press Enter,
 and the task lands in your running Mindwtr desktop app through Mindwtr's **Local API**.
 
-AGPL-3.0, like Mindwtr. See `SPEC.md` for the design contract.
+An unofficial companion, not affiliated with the Mindwtr project. AGPL-3.0, like Mindwtr: `vendor/`
+holds Mindwtr's own `packages/core` (and reference copies of its quick-add components) at v1.3.6, so
+input is parsed exactly as Mindwtr parses it. See `SPEC.md` for the original design contract.
 
 ## 1. Turn on Mindwtr's Local API
 
@@ -31,12 +33,23 @@ token can also be overridden in QuickAdd's Settings.
 - **Ctrl+Alt+Space** (changeable in Settings) shows or hides the window. It also sits in the tray.
 - **Enter** saves, **Esc** hides. The ☆ star adds the task to today's focus; the Area select sets a
   default area for tasks that don't name a project.
+- **Enter** saves, **Ctrl+Enter** (or **Add & Edit**) saves and opens the task in Mindwtr's editor
+  via its `mindwtr://open?task=` link.
 - Tokens you type are tinted as they are recognised, with a preview of what was parsed below the input.
   All of Mindwtr's syntax works (`/due:`, `@context`, `#tag`, `+Project`, `!Area`, `%Person`, …), plus
-  `!1`–`!4` for priority, `due:`/`review:` without the slash, and `[label](https://…)` links.
-  A `+Project` that doesn't exist yet is created in Mindwtr.
+  `!1`–`!4` for priority, `start:`/`due:`/`review:` without the slash, `td`/`tmrw` for today/tomorrow,
+  and `[label](https://…)` links. A `+Project` that doesn't exist yet is created in Mindwtr.
+- **Suggestions**: after `!`, `+`, `@` or `#` a list of your areas, projects, contexts or tags opens;
+  ↑↓ move, Tab/Space/Enter pick, Esc closes. When it opens and how many entries it shows are settings.
+- **Tab completes commands**, shell style: `d` → `/duration:` → `due:` (Tab again picks today).
+- **Calendar** after `due:`, `start:` or `review:` (or while typing a value like `due:fri`): arrows
+  move, Ctrl+arrows jump by month or to the top/bottom of the month, Shift+arrows or a mouse drag pick
+  a start–due range, Tab/Space pick. A side panel shows how far away the date is, one-click dates,
+  and what is already due that day (each part can be turned off).
+- **↑ in an empty field** recalls earlier entries; **Ctrl+L** adds a copied URL as a link.
+- **Interface**: Full, Reduced (no example line) or Minimal (just the input) in Settings.
 - **… menu**: Import .txt (loads a file into Bulk add), Bulk add (one task per line, Ctrl+Enter saves
-  all), Settings, Quit.
+  all; Esc goes back to a single task), Settings, Quit.
 - **Audio**: records a voice note and creates "Audio note <date time>" (or the text you typed) with the
   recording attached as a file. Recordings are kept in `%APPDATA%\Mindwtr QuickAdd\recordings\`.
   There is no speech-to-text.
@@ -51,7 +64,7 @@ npm run dev        # Electron + Vite dev server
 npm run dev:web    # renderer only, in a normal browser at http://localhost:5173 (mock data;
                    # add ?mockError=unreachable to see the "API off" state)
 npm run typecheck
-npm test           # parser tests (vitest)
+npm test           # unit tests (vitest)
 npm run build      # out/main, out/preload, out/renderer
 npm run dist       # Windows installer in release/ (NSIS, unsigned)
 ```
