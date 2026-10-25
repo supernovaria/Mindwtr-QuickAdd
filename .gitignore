@@ -4,3 +4,4 @@ out/
 release/
 .agent-status/
 *.log
+build/
