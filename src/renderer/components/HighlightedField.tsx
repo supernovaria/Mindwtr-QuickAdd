@@ -161,7 +161,8 @@ export const HighlightedField = forwardRef<HighlightedFieldHandle, Props>(functi
     if (event.nativeEvent.isComposing) return onKeyDown?.(event);
     const { key, shiftKey } = event;
     if (key === 'Tab' && tabComplete && !event.ctrlKey && !event.altKey && !event.metaKey) {
-      if (cycleActive && !pickerOpen) {
+      // In the calendar, Tab picks; Shift+Tab still steps back through the cycle.
+      if (cycleActive && (!pickerOpen || shiftKey)) {
         event.preventDefault();
         const count = cycleActive.options.length;
         const index = (cycleActive.index + (shiftKey ? count - 1 : 1)) % count;
@@ -311,6 +312,10 @@ export const HighlightedField = forwardRef<HighlightedFieldHandle, Props>(functi
         onPick={acceptDate}
         onPickRange={acceptRange}
         onCycleCommand={cycleCommand}
+        onNavigate={(date) => {
+          setPickerAnchor(null);
+          setPickerDate(date);
+        }}
       />
     ) : null}
     {listOpen && suggestion ? (

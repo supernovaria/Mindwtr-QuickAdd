@@ -102,13 +102,15 @@ describe('date commands', () => {
 
 describe('tabCompletion', () => {
   const opts = (text: string) => tabCompletion(text, text.length)?.options;
-  test('one letter completes to commands, dates bare', () => {
-    expect(opts('Call mom d')).toEqual(['due:', '/duration:', '/done']);
-    expect(opts('s')).toEqual(['start:', '/someday']);
-    expect(opts('r')).toEqual(['review:', '/reference']);
+  test('one letter completes to commands; the date command comes second, bare', () => {
+    expect(opts('Call mom d')).toEqual(['/duration:', 'due:', '/done']);
+    expect(opts('s')).toEqual(['/someday', 'start:']);
+    expect(opts('r')).toEqual(['/reference', 'review:']);
+    expect(opts('du')).toEqual(['/duration:', 'due:']);
+    expect(opts('due')).toEqual(['due:']);
   });
   test('a typed slash keeps the slash form', () => {
-    expect(opts('x /d')).toEqual(['/due:', '/duration:', '/done']);
+    expect(opts('x /d')).toEqual(['/duration:', '/due:', '/done']);
     expect(opts('/n')).toEqual(['/note:', '/next']);
   });
   test('values for /priority: and /energy:', () => {
@@ -124,10 +126,10 @@ describe('tabCompletion', () => {
     expect(opts('Call ')).toBeUndefined();
     expect(opts('!ho')).toBeUndefined();
     expect(tabCompletion('dx', 1)).toBeNull(); // caret inside a word
-    expect(tabCompletion('d x', 1)?.options[0]).toBe('due:'); // end of a word mid-line is fine
+    expect(tabCompletion('d x', 1)?.options[1]).toBe('due:'); // end of a word mid-line is fine
   });
   test('every option parses as a command once given a value', () => {
-    expect(parseCapture(`Ship ${opts('d')![0]}2026-11-03`, { areas: [], projects: [] }).props.dueDate).toBe('2026-11-03');
+    expect(parseCapture(`Ship ${opts('d')![1]}2026-11-03`, { areas: [], projects: [] }).props.dueDate).toBe('2026-11-03');
     expect(parseCapture(`Ship ${opts('/n')![1]}`, { areas: [], projects: [] }).props.status).toBe('next');
     expect(parseCapture(`Ship ${opts('/priority:u')![0]}`, { areas: [], projects: [] }).props.priority).toBe('urgent');
   });

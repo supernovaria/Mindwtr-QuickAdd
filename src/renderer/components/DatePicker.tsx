@@ -3,7 +3,7 @@
 // keys; this component draws them and handles the mouse (click = one date,
 // drag = a start–due range).
 import { useEffect, useState } from 'react';
-import { monthGrid, rowWeekNumber, sameDay, startOfDay, weekdayLabels, type WeekStart } from '../calendar';
+import { addMonths, monthGrid, rowWeekNumber, sameDay, startOfDay, weekdayLabels, type WeekStart } from '../calendar';
 
 interface Props {
   command: 'start' | 'due' | 'review';
@@ -18,13 +18,15 @@ interface Props {
   onPickRange: (from: Date, to: Date) => void;
   /** Switches the command start → due → review. */
   onCycleCommand: () => void;
+  /** Moves the selection (the ‹ › month buttons). */
+  onNavigate: (date: Date) => void;
 }
 
 const COMMAND_LABEL = { start: 'Start', due: 'Due', review: 'Review' } as const;
 
 const ordered = (a: Date, b: Date): [Date, Date] => (a <= b ? [a, b] : [b, a]);
 
-export function DatePicker({ command, selected, anchor, today, weekStart, allowRange, onPick, onPickRange, onCycleCommand }: Props) {
+export function DatePicker({ command, selected, anchor, today, weekStart, allowRange, onPick, onPickRange, onCycleCommand, onNavigate }: Props) {
   const [drag, setDrag] = useState<{ from: Date; to: Date } | null>(null);
 
   // A drag released outside the calendar is cancelled.
@@ -55,7 +57,35 @@ export function DatePicker({ command, selected, anchor, today, weekStart, allowR
   return (
     <div className="datepicker" role="group" aria-label={`${COMMAND_LABEL[command]} date`}>
       <div className="datepicker-head">
-        <span className="datepicker-month">{month}</span>
+        <div className="datepicker-nav">
+          <button
+            type="button"
+            tabIndex={-1}
+            className="datepicker-step"
+            aria-label="Previous month"
+            title="Previous month (Ctrl+←)"
+            onMouseDown={(e) => {
+              e.preventDefault(); // keep the caret in the field
+              onNavigate(addMonths(selected, -1));
+            }}
+          >
+            ‹
+          </button>
+          <span className="datepicker-month">{month}</span>
+          <button
+            type="button"
+            tabIndex={-1}
+            className="datepicker-step"
+            aria-label="Next month"
+            title="Next month (Ctrl+→)"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              onNavigate(addMonths(selected, 1));
+            }}
+          >
+            ›
+          </button>
+        </div>
         <button
           type="button"
           tabIndex={-1}

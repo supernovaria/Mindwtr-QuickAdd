@@ -150,9 +150,16 @@ export function tabCompletion(text: string, caret: number): TabCompletion | null
   if (!commandMatch) return null;
   const [, slash, typed] = commandMatch;
   if (!slash && !typed) return null;
-  const options = COMMANDS
-    .filter((command) => command.startsWith(typed.toLowerCase()))
-    .map((command) => (slash || !BARE_COMMANDS.has(command) ? `/${command}` : command));
+  const matches = COMMANDS.filter((command) => command.startsWith(typed.toLowerCase()));
+  // A date command opens the calendar, where Tab picks a date instead of
+  // cycling on. Put it second so Tab, Tab lands on it (`d` → `/duration:` →
+  // `due:`) and a third Tab picks today.
+  const dateIndex = matches.findIndex((command) => BARE_COMMANDS.has(command));
+  if (dateIndex > 1 || (dateIndex === 0 && matches.length > 1)) {
+    const [dateCommand] = matches.splice(dateIndex, 1);
+    matches.splice(1, 0, dateCommand);
+  }
+  const options = matches.map((command) => (slash || !BARE_COMMANDS.has(command) ? `/${command}` : command));
   return options.length > 0 ? { start, options } : null;
 }
 
