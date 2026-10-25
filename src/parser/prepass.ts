@@ -8,6 +8,7 @@
 //   bare `due:`/`review:` get the leading `/` core expects
 
 import type { TaskPriority } from '../../vendor/mindwtr-core/src/types';
+import { parseQuickAddDateCommands } from '../../vendor/mindwtr-core/src/quick-add';
 import { ESCAPE_CHARS, commandValueEnd, maskEscapes } from './text';
 
 export const SHORTHAND_PRIORITIES: Record<string, TaskPriority> = {
@@ -68,7 +69,7 @@ function labelChars(raw: string, start: number, end: number): OutChar[] {
     return out;
 }
 
-export function prepass(raw: string, options: PrepassOptions): PrepassResult {
+export function prepass(raw: string, options: PrepassOptions, now: Date): PrepassResult {
     const masked = maskEscapes(raw);
     const edits: Edit[] = [];
     const markdownLinks: MarkdownLink[] = [];
@@ -176,7 +177,85 @@ export function prepass(raw: string, options: PrepassOptions): PrepassResult {
     }
     map.push(raw.length);
 
-    return { text, map, markdownLinks, priority, bareDue, bareReview };
+    let current = { text, map };
+    for (const command of DATE_COMMANDS) current = splitDateCommand(current.text, current.map, command, now, markdownLinks);
+
+    return { text: current.text, map: current.map, markdownLinks, priority, bareDue, bareReview };
+}
+
+const DATE_COMMANDS = [
+    ['start', 'startTime'],
+    ['due', 'dueDate'],
+    ['review', 'reviewAt'],
+] as const;
+const MAX_DATE_WORDS = 4;
+
+/**
+ * Core's date command value runs to the next slash command, so a date typed
+ * first ("/due:friday call mom") fails as a whole. When neither the whole
+ * value nor core's own fallback yields a date, end the command after the
+ * longest word prefix (up to MAX_DATE_WORDS) that is a date, by moving the
+ * remaining words in front of the command where core reads them as title.
+ */
+function splitDateCommand(
+    text: string,
+    map: number[],
+    [command, field]: (typeof DATE_COMMANDS)[number],
+    now: Date,
+    markdownLinks: MarkdownLink[],
+): { text: string; map: number[] } {
+    const masked = maskEscapes(text);
+    const match = new RegExp(String.raw`(?:^|\s)\/${command}:`, 'i').exec(masked);
+    if (!match) return { text, map };
+    const commandStart = match.index + match[0].indexOf('/');
+    const valueStart = commandStart + command.length + 2;
+    const valueEnd = commandValueEnd(masked, valueStart, 1);
+    const value = text.slice(valueStart, valueEnd);
+    if (parseQuickAddDateCommands(`/${command}:${value}`, now).props[field]) return { text, map };
+
+    const words = Array.from(value.matchAll(/\S+/gu)).map((w) => ({
+        start: valueStart + (w.index ?? 0),
+        end: valueStart + (w.index ?? 0) + w[0].length,
+    }));
+    for (let k = Math.min(MAX_DATE_WORDS, words.length - 1); k >= 1; k -= 1) {
+        const prefix = text.slice(words[0].start, words[k - 1].end);
+        const parsed = parseQuickAddDateCommands(`/${command}:${prefix}`, now);
+        if (!parsed.props[field] || parsed.title !== '') continue;
+
+        const restStart = words[k].start;
+        const order: number[] = [];
+        const push = (from: number, to: number) => {
+            for (let i = from; i < to; i += 1) order.push(i);
+        };
+        push(0, commandStart);
+        push(restStart, valueEnd);
+        order.push(-1); // separating space
+        push(commandStart, restStart);
+        push(valueEnd, text.length);
+
+        const newIndexOf: number[] = [];
+        let nextText = '';
+        const nextMap: number[] = [];
+        order.forEach((oldIndex, newIndex) => {
+            if (oldIndex < 0) {
+                nextText += ' ';
+                nextMap.push(map[commandStart]);
+            } else {
+                nextText += text[oldIndex];
+                nextMap.push(map[oldIndex]);
+                newIndexOf[oldIndex] = newIndex;
+            }
+        });
+        nextMap.push(map[text.length]);
+        for (const link of markdownLinks) {
+            if (link.textEnd <= link.textStart) continue;
+            const s = newIndexOf[link.textStart];
+            link.textEnd = newIndexOf[link.textEnd - 1] + 1;
+            link.textStart = s;
+        }
+        return { text: nextText, map: nextMap };
+    }
+    return { text, map };
 }
 
 /** Map a [start, end) range of the rewritten text back to raw offsets. */

@@ -68,7 +68,7 @@ function isAssignableProject(project: Project | undefined): boolean {
 }
 
 function attempt(input: string, ctx: CaptureContext, now: Date, options: PrepassOptions, naturalLanguageDates: boolean): Attempt {
-    const pre = prepass(input, options);
+    const pre = prepass(input, options, now);
     const result = parseQuickAdd(pre.text, ctx.projects, now, ctx.areas, {
         knownContexts: ctx.knownContexts,
         knownTags: ctx.knownTags,

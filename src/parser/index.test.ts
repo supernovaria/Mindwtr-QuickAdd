@@ -292,14 +292,33 @@ describe('extension: bare due: and review:', () => {
         expect(marks(input, r)).toEqual(['date:due:tomorrow', 'project:+Proj']);
     });
 
-    it('like /due:, swallows following title words and then reads as plain text', () => {
-        // Core's /due: value runs to the next slash command, and "tomorrow Ship"
-        // is not a date. /due: would warn; the bare form just stays text.
-        const input = 'due:tomorrow Ship';
+    it.each([
+        ['due:friday call mom', 'call mom', { dueDate: '2026-10-23' }, 'date:due:friday'],
+        ['/due:tomorrow Ship it', 'Ship it', { dueDate: '2026-10-22' }, 'date:/due:tomorrow'],
+        ['review:next monday read the book', 'read the book', { reviewAt: '2026-10-26' }, 'date:review:next monday'],
+        ['due:next friday call mom', 'call mom', { dueDate: '2026-10-30' }, 'date:due:next friday'],
+        ['Call /start:tomorrow mom later @x', 'Call mom later', { startTime: '2026-10-22', contexts: ['@x'] }, 'date:/start:tomorrow'],
+    ])('date first: %s', (input, title, props, dateMark) => {
         const r = parseCapture(input, ctx);
-        expect(r.title).toBe('due:tomorrow Ship');
+        expect(r.title).toBe(title);
+        expect(r.props).toEqual(props);
+        expect(r.warnings).toEqual([]);
+        expect(marks(input, r).filter((m) => m.startsWith('date:'))).toEqual([dateMark]);
+        expectWellFormed(r.highlights, input.length);
+    });
+
+    it('a genuinely invalid bare value stays plain text', () => {
+        const r = parseCapture('due:blorp x', ctx);
+        expect(r.title).toBe('due:blorp x');
         expect(r.props).toEqual({});
         expect(r.warnings).toEqual([]);
+        expect(r.highlights).toEqual([]);
+    });
+
+    it('a genuinely invalid /due: keeps its warning', () => {
+        const r = parseCapture('/due:blorp', ctx);
+        expect(r.warnings).toEqual(['Invalid date: /due:blorp']);
+        expect(r.props).toEqual({});
     });
 
     it('does not match overdue:', () => {
