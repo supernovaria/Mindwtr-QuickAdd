@@ -397,19 +397,22 @@ button:disabled { cursor: not-allowed; }
 .suggest-hint { padding: 4px 8px 2px; font-size: 11px; color: var(--muted-foreground); }
 .footer-row-end { justify-content: flex-end; }
 
-.datepicker { padding: 6px 8px 4px; }
+.datepicker { user-select: none; width: 316px; max-width: 100%; box-sizing: border-box; padding: 6px 6px 4px; }
 .datepicker-head { display: flex; justify-content: space-between; align-items: baseline; padding: 0 2px 4px; }
 .datepicker-month { font-weight: 600; }
-.datepicker-for { font-size: 11px; color: var(--primary); text-transform: uppercase; letter-spacing: 0.04em; }
-.datepicker-grid { width: 100%; border-collapse: separate; border-spacing: 2px; table-layout: fixed; }
+.datepicker-for { padding: 1px 6px; border: 1px solid var(--border); border-radius: 4px; background: transparent; font-size: 11px; color: var(--primary); text-transform: uppercase; letter-spacing: 0.04em; cursor: pointer; }
+.datepicker-for:hover { background: var(--accent-tint); }
+.datepicker-grid .datepicker-week { width: 26px; font-size: 10px; color: var(--muted-foreground); opacity: 0.7; font-variant-numeric: tabular-nums; }
+.datepicker-grid { width: 100%; border-collapse: separate; border-spacing: 1px; table-layout: fixed; }
 .datepicker-grid th { font-size: 11px; font-weight: 500; color: var(--muted-foreground); padding: 2px 0; text-align: center; }
 .datepicker-grid td { padding: 0; text-align: center; }
 .datepicker-grid button {
   width: 100%;
-  height: 26px;
+  height: 24px;
   padding: 0;
   border: 1px solid transparent;
   border-radius: 6px;
+  user-select: none;
   background: transparent;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
@@ -417,7 +420,9 @@ button:disabled { cursor: not-allowed; }
 .datepicker-grid button:hover { background: var(--muted); }
 .datepicker-grid button.outside { color: var(--muted-foreground); opacity: 0.5; }
 .datepicker-grid button.today { border-color: var(--foreground); font-weight: 600; }
-.datepicker-grid button.selected { background: var(--primary); color: var(--primary-foreground); }
+.datepicker-grid button.in-range { background: var(--accent-tint); border-radius: 0; }
+.datepicker-grid button.selected { background: var(--primary); color: var(--primary-foreground); border-radius: 6px; }
+.datepicker .suggest-hint { padding: 4px 2px 2px; line-height: 15px; }
 
 /* ---- settings: "While typing" group ---- */
 .settings-group { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; border: 0; }

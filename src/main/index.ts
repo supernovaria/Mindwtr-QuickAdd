@@ -257,6 +257,15 @@ function registerIpc(): void {
       }));
     return api.createTasks(clean);
   });
+  // Mindwtr's own task link (what "Copy task link" produces) opens the task's editor.
+  handle(IPC.openTask, async (taskId: unknown) => {
+    if (typeof taskId !== 'string' || !/^[\w-]{1,128}$/.test(taskId)) throw new Error('Invalid task id');
+    hideWindow();
+    // Give Mindwtr a moment to load the task the Local API just wrote, so the
+    // link doesn't land before the task exists in its UI.
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    await shell.openExternal(`mindwtr://open?task=${encodeURIComponent(taskId)}`);
+  });
   handle(IPC.importTxt, async () => {
     if (!win) return null;
     suppressBlurHide = true;

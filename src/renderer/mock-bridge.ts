@@ -96,6 +96,10 @@ export function createMockBridge(): QuickAddBridge {
       // Simulate the hotkey bringing it back so the page stays usable.
       setTimeout(() => showListeners.forEach((listener) => listener({})), 600);
     },
+    async openTask(taskId) {
+      console.log('[mock] open in Mindwtr', `mindwtr://open?task=${taskId}`);
+      this.hide();
+    },
     quit() {
       console.log('[mock] quit');
     },

@@ -1,5 +1,6 @@
 // Date arithmetic for the keyboard date picker. Dates are local calendar days
 // (time is always midnight), formatted as YYYY-MM-DD for Mindwtr.
+import { getISOWeek } from 'date-fns';
 
 export type WeekStart = 'monday' | 'sunday';
 
@@ -31,6 +32,9 @@ export function lastSameWeekday(date: Date): Date {
 
 export const toIsoDate = (date: Date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+
+/** ISO 8601 calendar week of a grid row: the week its Thursday falls in. */
+export const rowWeekNumber = (week: Date[], weekStart: WeekStart) => getISOWeek(week[weekStart === 'monday' ? 3 : 4]);
 
 /** Weekday labels in display order. */
 export function weekdayLabels(weekStart: WeekStart, locale?: string): string[] {

@@ -10,6 +10,7 @@ const bridge: QuickAddBridge = {
   importTxt: () => ipcRenderer.invoke(IPC.importTxt),
   saveRecording: (data, mimeType) => ipcRenderer.invoke(IPC.saveRecording, data, mimeType),
   resize: (height) => ipcRenderer.send(IPC.resize, height),
+  openTask: (taskId) => ipcRenderer.invoke(IPC.openTask, taskId),
   hide: () => ipcRenderer.send(IPC.hide),
   quit: () => ipcRenderer.send(IPC.quit),
   getSettings: () => ipcRenderer.invoke(IPC.getSettings),

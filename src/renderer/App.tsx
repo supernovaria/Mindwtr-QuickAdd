@@ -170,7 +170,8 @@ export function App() {
     }
   }, []);
 
-  const saveText = useCallback(async () => {
+  /** `edit`: open the new task in Mindwtr's editor afterwards (Ctrl+Enter, "Add & Edit"). */
+  const saveText = useCallback(async (edit = false) => {
     if (submitting) return;
     if (!parsed.title.trim()) {
       setStatus({ kind: 'error', text: text.trim() ? 'The task needs a title besides the tokens.' : 'Type a task first.' });
@@ -185,6 +186,14 @@ export function App() {
       return;
     }
     setApiError(null);
+    const first = outcomes[0];
+    const createdId = first && 'task' in first ? first.task?.id : undefined;
+    if (edit && createdId) {
+      setText('');
+      setStatus(null);
+      await bridge.openTask(createdId);
+      return;
+    }
     flashAddedThenHide('Added', () => setText(''));
   }, [submitting, parsed, text, send, flashAddedThenHide, refresh]);
 
@@ -509,7 +518,10 @@ export function App() {
             ariaLabel="Task"
             placeholder="Add Task"
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey && !e.altKey) {
+              if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                void saveText(true);
+              } else if (e.key === 'Enter' && !e.shiftKey && !e.altKey) {
                 e.preventDefault();
                 void saveText();
               }
@@ -531,6 +543,15 @@ export function App() {
                   {statusLine}
                   <button type="button" className="btn btn-muted" disabled={submitting} onClick={hide}>
                     Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-muted"
+                    disabled={submitting || !text.trim()}
+                    title="Add, then open it in Mindwtr (Ctrl+Enter)"
+                    onClick={() => void saveText(true)}
+                  >
+                    Add &amp; Edit
                   </button>
                   <button type="submit" className="btn btn-primary" disabled={submitting || !text.trim()} title="Enter">
                     {submitting ? 'Saving…' : 'Save'}

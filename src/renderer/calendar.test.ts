@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { addMonths, firstSameWeekday, lastSameWeekday, monthGrid, toIsoDate } from './calendar';
+import { addMonths, firstSameWeekday, lastSameWeekday, monthGrid, rowWeekNumber, toIsoDate } from './calendar';
 
 const iso = (d: Date) => toIsoDate(d);
 
@@ -42,5 +42,13 @@ describe('monthGrid', () => {
     const grid = monthGrid(new Date(2026, 9, 25), 'sunday');
     expect(iso(grid[0][0])).toBe('2026-09-27');
     expect(grid[0][0].getDay()).toBe(0);
+  });
+});
+
+describe('rowWeekNumber', () => {
+  test('ISO weeks for October 2026, either week start', () => {
+    expect(monthGrid(new Date(2026, 9, 1), 'monday').map((w) => rowWeekNumber(w, 'monday'))).toEqual([40, 41, 42, 43, 44]);
+    // Sunday-start rows run Sun–Sat; the row's Thursday decides.
+    expect(rowWeekNumber(monthGrid(new Date(2026, 9, 1), 'sunday')[0], 'sunday')).toBe(40);
   });
 });

@@ -5,8 +5,8 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent, ReactNode } from 'react';
 import { segment, type HighlightSpan } from '../capture';
-import { activeDateCommand, activeToken, applyCompletion, applyDate, rankSuggestions, tabCompletion, type TabCompletion } from '../completion';
-import { addDays, addMonths, firstSameWeekday, lastSameWeekday, startOfDay, toIsoDate, type WeekStart } from '../calendar';
+import { activeDateCommand, activeToken, applyCompletion, applyDate, applyDateRange, cycleDateCommand, rankSuggestions, tabCompletion, type TabCompletion } from '../completion';
+import { addDays, addMonths, firstSameWeekday, lastSameWeekday, sameDay, startOfDay, toIsoDate, type WeekStart } from '../calendar';
 import { DatePicker } from './DatePicker';
 
 /** Names offered while typing `<marker><name>`, e.g. areas after `!`. */
@@ -63,13 +63,18 @@ export const HighlightedField = forwardRef<HighlightedFieldHandle, Props>(functi
 
   // ---- popups under the field ------------------------------------------------
   // Suggestions: arrows move, Space/Tab/Enter accept, Esc dismisses.
-  // Date picker: arrows move by day/week, Shift+arrows by month / to the top or
-  // bottom of the month, Space/Tab/Enter insert the date, Esc dismisses.
+  // Date picker: arrows move by day/week, Ctrl+arrows by month / to the top or
+  // bottom of the month, Shift+arrows extend a start–due range from where the
+  // selection was, Tab/Space/Enter insert, Esc dismisses. Clicking the command
+  // label cycles start → due → review.
+  // Tab on a command word completes it (`d` → `due:`) and cycles on repeat,
+  // except once the calendar is open: there Tab picks, as in the lists.
   const [caret, setCaret] = useState(0);
   const [activeIndex, setActiveIndex] = useState(0);
   const [navigated, setNavigated] = useState(false);
   const [dismissed, setDismissed] = useState<string | null>(null);
   const [pickerDate, setPickerDate] = useState(() => startOfDay(new Date()));
+  const [pickerAnchor, setPickerAnchor] = useState<Date | null>(null);
   const [cycle, setCycle] = useState<(TabCompletion & { index: number }) | null>(null);
   const pendingCaret = useRef<number | null>(null);
 
@@ -89,7 +94,7 @@ export const HighlightedField = forwardRef<HighlightedFieldHandle, Props>(functi
     return null;
   }, [dateCommand, value, caret, completions]);
 
-  const popupKey = dateCommand ? `date:${dateCommand.at}` : suggestion ? `list:${suggestion.token.start}` : null;
+  const popupKey = dateCommand ? `date:${dateCommand.start}` : suggestion ? `list:${suggestion.token.start}` : null;
   const pickerOpen = dateCommand !== null && dismissed !== popupKey;
   const listOpen = suggestion !== null && dismissed !== popupKey;
   const selected = suggestion ? Math.min(activeIndex, suggestion.items.length - 1) : 0;
@@ -102,10 +107,17 @@ export const HighlightedField = forwardRef<HighlightedFieldHandle, Props>(functi
     if (popupKey === null) setDismissed(null);
   }, [popupKey]);
   // Every new date command starts on today.
-  const dateAt = dateCommand?.at;
+  // (Keyed on where the command starts, so cycling start/due/review keeps the date.
+  // Swapping the word goes through one render where the caret still sits at the
+  // old position and no command is found, so only a different start resets.)
+  const dateStart = dateCommand?.start;
+  const lastDateStart = useRef<number | undefined>(undefined);
   useEffect(() => {
-    if (dateAt !== undefined) setPickerDate(startOfDay(new Date()));
-  }, [dateAt]);
+    if (dateStart === undefined || dateStart === lastDateStart.current) return;
+    lastDateStart.current = dateStart;
+    setPickerDate(startOfDay(new Date()));
+    setPickerAnchor(null);
+  }, [dateStart]);
   useEffect(() => {
     listRef.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' });
   }, [selected, listOpen]);
@@ -129,6 +141,13 @@ export const HighlightedField = forwardRef<HighlightedFieldHandle, Props>(functi
   const acceptDate = (date: Date) => {
     if (dateCommand) replaceWith(applyDate(value, dateCommand, toIsoDate(date)));
   };
+  const acceptRange = (first: Date, last: Date) => {
+    if (dateCommand) replaceWith(applyDateRange(value, dateCommand, toIsoDate(first), toIsoDate(last)));
+  };
+  const rangeAllowed = dateCommand?.command === 'start' || dateCommand?.command === 'due';
+  const cycleCommand = () => {
+    if (dateCommand) replaceWith(cycleDateCommand(value, dateCommand));
+  };
 
   const replaceSpan = (start: number, end: number, inserted: string) => {
     pendingCaret.current = start + inserted.length;
@@ -142,7 +161,7 @@ export const HighlightedField = forwardRef<HighlightedFieldHandle, Props>(functi
     if (event.nativeEvent.isComposing) return onKeyDown?.(event);
     const { key, shiftKey } = event;
     if (key === 'Tab' && tabComplete && !event.ctrlKey && !event.altKey && !event.metaKey) {
-      if (cycleActive) {
+      if (cycleActive && !pickerOpen) {
         event.preventDefault();
         const count = cycleActive.options.length;
         const index = (cycleActive.index + (shiftKey ? count - 1 : 1)) % count;
@@ -165,17 +184,24 @@ export const HighlightedField = forwardRef<HighlightedFieldHandle, Props>(functi
       return;
     }
     if (pickerOpen && dateCommand) {
-      const moves: Record<string, (d: Date) => Date> = shiftKey
+      const moves: Record<string, (d: Date) => Date> = event.ctrlKey || event.metaKey
         ? { ArrowLeft: (d) => addMonths(d, -1), ArrowRight: (d) => addMonths(d, 1), ArrowUp: firstSameWeekday, ArrowDown: lastSameWeekday }
         : { ArrowLeft: (d) => addDays(d, -1), ArrowRight: (d) => addDays(d, 1), ArrowUp: (d) => addDays(d, -7), ArrowDown: (d) => addDays(d, 7) };
       if (moves[key]) {
         event.preventDefault();
+        if (shiftKey && rangeAllowed) setPickerAnchor((anchor) => anchor ?? pickerDate);
+        else setPickerAnchor(null);
         setPickerDate(moves[key]);
         return;
       }
       if (isAccept(event)) {
         event.preventDefault();
-        acceptDate(pickerDate);
+        if (pickerAnchor && rangeAllowed && !sameDay(pickerAnchor, pickerDate)) {
+          const [first, last] = pickerAnchor < pickerDate ? [pickerAnchor, pickerDate] : [pickerDate, pickerAnchor];
+          acceptRange(first, last);
+        } else {
+          acceptDate(pickerDate);
+        }
         return;
       }
     }
@@ -278,9 +304,13 @@ export const HighlightedField = forwardRef<HighlightedFieldHandle, Props>(functi
       <DatePicker
         command={dateCommand.command}
         selected={pickerDate}
+        anchor={pickerAnchor}
         today={startOfDay(new Date())}
         weekStart={datePicker.weekStart}
+        allowRange={rangeAllowed}
         onPick={acceptDate}
+        onPickRange={acceptRange}
+        onCycleCommand={cycleCommand}
       />
     ) : null}
     {listOpen && suggestion ? (

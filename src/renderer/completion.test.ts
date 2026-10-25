@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { activeDateCommand, activeToken, applyCompletion, applyDate, formatToken, rankSuggestions, tabCompletion } from './completion';
+import { activeDateCommand, activeToken, applyCompletion, applyDate, applyDateRange, cycleDateCommand, formatToken, rankSuggestions, tabCompletion } from './completion';
 import { parseCapture } from '../parser';
 
 const AREAS = ['Career & Impact', 'Social', 'Health, Self & Well-being', 'Home & Admin', 'Transition', 'Discovery & Exploration'];
@@ -83,9 +83,9 @@ describe('trigger thresholds and limits', () => {
 
 describe('date commands', () => {
   test('open right after the colon, slash optional', () => {
-    expect(activeDateCommand('Call mom due:', 13)).toEqual({ command: 'due', at: 13 });
-    expect(activeDateCommand('/start:', 7)).toEqual({ command: 'start', at: 7 });
-    expect(activeDateCommand('x review:', 9)).toEqual({ command: 'review', at: 9 });
+    expect(activeDateCommand('Call mom due:', 13)).toEqual({ command: 'due', at: 13, start: 9, slash: false });
+    expect(activeDateCommand('/start:', 7)).toEqual({ command: 'start', at: 7, start: 0, slash: true });
+    expect(activeDateCommand('x review:', 9)).toEqual({ command: 'review', at: 9, start: 2, slash: false });
   });
   test('close once something is typed or the word is not a command', () => {
     expect(activeDateCommand('due:t', 5)).toBeNull();
@@ -130,5 +130,30 @@ describe('tabCompletion', () => {
     expect(parseCapture(`Ship ${opts('d')![0]}2026-11-03`, { areas: [], projects: [] }).props.dueDate).toBe('2026-11-03');
     expect(parseCapture(`Ship ${opts('/n')![1]}`, { areas: [], projects: [] }).props.status).toBe('next');
     expect(parseCapture(`Ship ${opts('/priority:u')![0]}`, { areas: [], projects: [] }).props.priority).toBe('urgent');
+  });
+});
+
+describe('applyDateRange', () => {
+  test('turns the command into start: and due:', () => {
+    const text = 'Trip due: @travel';
+    const result = applyDateRange(text, activeDateCommand(text, 9)!, '2026-11-02', '2026-11-06');
+    expect(result.text).toBe('Trip start:2026-11-02 due:2026-11-06 @travel');
+    const parsed = parseCapture(result.text, { areas: [], projects: [] });
+    expect(parsed.props).toMatchObject({ startTime: '2026-11-02', dueDate: '2026-11-06' });
+    expect(parsed.title).toBe('Trip');
+  });
+  test('keeps a typed slash', () => {
+    const text = 'Trip /start:';
+    expect(applyDateRange(text, activeDateCommand(text, text.length)!, '2026-11-02', '2026-11-06').text)
+      .toBe('Trip /start:2026-11-02 /due:2026-11-06 ');
+  });
+});
+
+describe('cycleDateCommand', () => {
+  test('start -> due -> review -> start, keeping the slash and the caret after the colon', () => {
+    const step = (text: string) => cycleDateCommand(text, activeDateCommand(text, text.length)!);
+    expect(step('Trip due:')).toEqual({ text: 'Trip review:', caret: 12 });
+    expect(step('Trip review:').text).toBe('Trip start:');
+    expect(step('Trip /start:').text).toBe('Trip /due:');
   });
 });

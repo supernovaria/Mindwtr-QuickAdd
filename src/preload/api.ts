@@ -120,6 +120,8 @@ export interface QuickAddBridge {
   saveRecording(data: ArrayBuffer, mimeType: string): Promise<SavedRecording>;
   /** Content height in CSS px; main fits the window to it. */
   resize(height: number): void;
+  /** Hides QuickAdd and opens the task in Mindwtr (mindwtr://open?task=<id>). */
+  openTask(taskId: string): Promise<void>;
   hide(): void;
   quit(): void;
   getSettings(): Promise<Settings>;
@@ -142,5 +144,6 @@ export const IPC = {
   getSettings: 'qa:get-settings',
   setSettings: 'qa:set-settings',
   connectionInfo: 'qa:connection-info',
+  openTask: 'qa:open-task',
   shown: 'qa:shown',
 } as const;

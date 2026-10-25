@@ -68,19 +68,37 @@ export interface ActiveDateCommand {
   command: DateCommand;
   /** Where the date goes: right after the colon, at the caret. */
   at: number;
+  /** Where the command word starts (its slash, if typed). */
+  start: number;
+  slash: boolean;
 }
 
 /** A `start:`/`due:`/`review:` command (slash optional) with nothing typed after it yet. */
 export function activeDateCommand(text: string, caret: number): ActiveDateCommand | null {
-  const match = text.slice(0, caret).match(/(?:^|\s)\/?(start|due|review):$/i);
+  const match = text.slice(0, caret).match(/(?:^|\s)(\/?)(start|due|review):$/i);
   if (!match) return null;
   if (/^\S/.test(text.slice(caret))) return null;
-  return { command: match[1].toLowerCase() as DateCommand, at: caret };
+  const word = match[1] + match[2] + ':';
+  return { command: match[2].toLowerCase() as DateCommand, at: caret, start: caret - word.length, slash: match[1] === '/' };
 }
 
 /** Inserts the picked date (YYYY-MM-DD) at the command and moves the caret past a space. */
 export function applyDate(text: string, command: ActiveDateCommand, isoDate: string): { text: string; caret: number } {
   return replaceRange(text, command.at, command.at, isoDate);
+}
+
+const NEXT_DATE_COMMAND: Record<DateCommand, DateCommand> = { start: 'due', due: 'review', review: 'start' };
+
+/** Swaps the empty command for the next of start → due → review, keeping a typed slash. */
+export function cycleDateCommand(text: string, command: ActiveDateCommand): { text: string; caret: number } {
+  const word = `${command.slash ? '/' : ''}${NEXT_DATE_COMMAND[command.command]}:`;
+  return { text: text.slice(0, command.start) + word + text.slice(command.at), caret: command.start + word.length };
+}
+
+/** Replaces the command with `start:<first> due:<last>` (keeping a typed slash). */
+export function applyDateRange(text: string, command: ActiveDateCommand, startIso: string, dueIso: string): { text: string; caret: number } {
+  const slash = command.slash ? '/' : '';
+  return replaceRange(text, command.start, command.at, `${slash}start:${startIso} ${slash}due:${dueIso}`);
 }
 
 // ---- Tab completion of commands, shell style ------------------------------------
