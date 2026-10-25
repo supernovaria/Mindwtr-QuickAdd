@@ -8,6 +8,11 @@ import type { ApiError, ApiResult, QuickAddBridge, Settings, ShowEvent } from '.
 import { singleHttpUrl } from './clipboard-link';
 
 const now = new Date().toISOString();
+const daysFromNow = (days: number) => {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
 
 const AREAS: Area[] = [
   { id: 'area-work', name: 'Work', color: '#2563eb', order: 0, createdAt: now, updatedAt: now },
@@ -59,7 +64,17 @@ export function createMockBridge(): QuickAddBridge {
     isElectron: false,
     listAreas: () => ok(AREAS),
     listProjects: () => ok([...PROJECTS]),
-    knownTokens: () => ok({ contexts: ['@phone', '@computer', '@errands', '@work/calls'], tags: ['#urgent', '#idea', '#idea/app'] }),
+    knownTokens: () =>
+      ok({
+        contexts: ['@phone', '@computer', '@errands', '@work/calls'],
+        tags: ['#urgent', '#idea', '#idea/app'],
+        due: [
+          { title: 'Send invoice', date: daysFromNow(1) },
+          { title: 'Dentist', date: daysFromNow(5) },
+          { title: 'Renew passport', date: daysFromNow(5) },
+          { title: 'Quarterly review draft', date: daysFromNow(12) },
+        ],
+      }),
     async createTasks(items) {
       console.log('[mock] POST /tasks', items);
       await new Promise((resolve) => setTimeout(resolve, 150));

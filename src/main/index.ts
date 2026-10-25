@@ -25,9 +25,8 @@ import { SettingsStore } from './settings';
 
 const WINDOW_WIDTH = 580;
 const MIN_HEIGHT = 120;
-/** Delay before (and fallback resend of) the mindwtr:// link after Add & Edit. */
-const OPEN_TASK_DELAY_MS = 1200;
-const OPEN_TASK_RETRY_MS = 2300; // after the first send, so ~3.5 s in
+/** When the mindwtr:// link is sent after Add & Edit (ms after saving), see IPC.openTask. */
+const OPEN_TASK_SEND_TIMES_MS = [1500, 4500, 9000];
 const isDev = !!process.env.VITE_DEV_SERVER_URL;
 const selfTest = process.env.QUICKADD_SELFTEST === '1';
 const keepOnBlur = selfTest || process.env.QUICKADD_KEEP_ON_BLUR === '1';
@@ -267,13 +266,16 @@ function registerIpc(): void {
     if (typeof taskId !== 'string' || !/^[\w-]{1,128}$/.test(taskId)) throw new Error('Invalid task id');
     hideWindow();
     // Mindwtr's UI picks up Local API writes through a debounced file watcher
-    // (750 ms, then a reload), so a link sent right away can arrive before the
-    // task exists there ("This task is not in this library"). Wait, then send it
-    // once more as a fallback; re-opening a task that already opened is harmless.
+    // (750 ms, then a reload) that also holds reloads back while something is
+    // being edited in Mindwtr and for a while after its own writes. So a link
+    // can arrive before the task exists there ("This task is not in this
+    // library"). Send it a few times; re-opening a task that already opened is
+    // harmless.
     const link = `mindwtr://open?task=${encodeURIComponent(taskId)}`;
-    await new Promise((resolve) => setTimeout(resolve, OPEN_TASK_DELAY_MS));
+    const [first, ...later] = OPEN_TASK_SEND_TIMES_MS;
+    await new Promise((resolve) => setTimeout(resolve, first));
     await shell.openExternal(link);
-    setTimeout(() => void shell.openExternal(link).catch(() => undefined), OPEN_TASK_RETRY_MS);
+    for (const at of later) setTimeout(() => void shell.openExternal(link).catch(() => undefined), at - first);
   });
   handle(IPC.importTxt, async () => {
     if (!win) return null;

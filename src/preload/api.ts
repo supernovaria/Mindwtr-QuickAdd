@@ -38,6 +38,8 @@ export interface CreateTaskOutcome {
 export interface KnownTokens {
   contexts: string[];
   tags: string[];
+  /** Open tasks with a due date (YYYY-MM-DD), for the calendar's "due that day". */
+  due: Array<{ title: string; date: string }>;
 }
 
 export type InterfaceMode = 'full' | 'reduced' | 'minimal';

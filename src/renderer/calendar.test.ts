@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { addMonths, firstSameWeekday, lastSameWeekday, monthGrid, rowWeekNumber, toIsoDate } from './calendar';
+import { addMonths, daysBetween, describeDates, firstSameWeekday, lastSameWeekday, monthGrid, quickPicks, rowWeekNumber, toIsoDate } from './calendar';
 
 const iso = (d: Date) => toIsoDate(d);
 
@@ -50,5 +50,37 @@ describe('rowWeekNumber', () => {
     expect(monthGrid(new Date(2026, 9, 1), 'monday').map((w) => rowWeekNumber(w, 'monday'))).toEqual([40, 41, 42, 43, 44]);
     // Sunday-start rows run Sun–Sat; the row's Thursday decides.
     expect(rowWeekNumber(monthGrid(new Date(2026, 9, 1), 'sunday')[0], 'sunday')).toBe(40);
+  });
+});
+
+describe('describeDates', () => {
+  const today = new Date(2026, 9, 25); // Sun
+  test('one date', () => {
+    expect(describeDates(today, today)).toBe('today');
+    expect(describeDates(today, new Date(2026, 9, 26))).toBe('tomorrow');
+    expect(describeDates(today, new Date(2026, 9, 30))).toBe('in 5 days');
+    expect(describeDates(today, new Date(2026, 9, 20))).toBe('5 days ago');
+  });
+  test('a range', () => {
+    expect(describeDates(today, new Date(2026, 10, 2), new Date(2026, 10, 5), 'en-US')).toBe('starting in 8 days, 4 days total (Mon–Thu)');
+    expect(describeDates(today, today, new Date(2026, 9, 26), 'en-US')).toBe('starting today, 2 days total (Sun–Mon)');
+  });
+  test('across a DST change (EU clocks go back on 25 Oct 2026)', () => {
+    expect(daysBetween(new Date(2026, 9, 24), new Date(2026, 9, 26))).toBe(2);
+  });
+});
+
+describe('quickPicks', () => {
+  const picks = (d: Date) => Object.fromEntries(quickPicks(d).map((p) => [p.label, toIsoDate(p.date)]));
+  test('from a Sunday', () => {
+    expect(picks(new Date(2026, 9, 25))).toEqual({
+      Today: '2026-10-25', Tomorrow: '2026-10-26', 'This weekend': '2026-10-25',
+      'Next week': '2026-10-26', 'In 2 weeks': '2026-11-08', 'Next month': '2026-11-25',
+    });
+  });
+  test('from a Wednesday', () => {
+    const p = picks(new Date(2026, 9, 21));
+    expect(p['This weekend']).toBe('2026-10-24');
+    expect(p['Next week']).toBe('2026-10-26');
   });
 });

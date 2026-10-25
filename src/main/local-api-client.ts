@@ -120,11 +120,14 @@ export class LocalApiClient {
     if (!result.ok) return result;
     const contexts = new Set<string>();
     const tags = new Set<string>();
+    const due: KnownTokens['due'] = [];
     for (const task of result.data.tasks ?? []) {
       for (const c of task.contexts ?? []) if (typeof c === 'string') contexts.add(c);
       for (const t of task.tags ?? []) if (typeof t === 'string') tags.add(t);
+      const open = !task.deletedAt && task.status !== 'done' && task.status !== 'archived';
+      if (open && typeof task.dueDate === 'string' && task.title) due.push({ title: task.title, date: task.dueDate.slice(0, 10) });
     }
-    const value = { contexts: [...contexts].sort(), tags: [...tags].sort() };
+    const value = { contexts: [...contexts].sort(), tags: [...tags].sort(), due };
     this.tokensCache = { at: Date.now(), value };
     return { ok: true, data: value };
   }

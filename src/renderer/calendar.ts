@@ -53,3 +53,45 @@ export function monthGrid(date: Date, weekStart: WeekStart): Date[][] {
   const weeks = Math.ceil((lead + last) / 7);
   return Array.from({ length: weeks }, (_, w) => Array.from({ length: 7 }, (_, d) => addDays(gridStart, w * 7 + d)));
 }
+
+const DAY_MS = 86_400_000;
+/** Whole days from `a` to `b` (local calendar days, DST-safe). */
+export const daysBetween = (a: Date, b: Date) =>
+  Math.round((Date.UTC(b.getFullYear(), b.getMonth(), b.getDate()) - Date.UTC(a.getFullYear(), a.getMonth(), a.getDate())) / DAY_MS);
+
+const relative = (days: number) =>
+  days === 0 ? 'today' : days === 1 ? 'tomorrow' : days === -1 ? 'yesterday' : days > 0 ? `in ${days} days` : `${-days} days ago`;
+
+const shortWeekday = (date: Date, locale?: string) => date.toLocaleDateString(locale, { weekday: 'short' });
+
+/**
+ * "in 5 days" for one date; "starting in 8 days, 4 days total (Mon–Thu)" for a
+ * range.
+ */
+export function describeDates(today: Date, first: Date, last?: Date, locale?: string): string {
+  if (!last || sameDay(first, last)) return relative(daysBetween(today, first));
+  const startsIn = daysBetween(today, first);
+  const starting = startsIn < 0 ? `started ${-startsIn} days ago` : `starting ${relative(startsIn)}`;
+  const total = daysBetween(first, last) + 1;
+  return `${starting}, ${total} days total (${shortWeekday(first, locale)}–${shortWeekday(last, locale)})`;
+}
+
+export interface QuickPick {
+  label: string;
+  date: Date;
+}
+
+/** One-click dates for the calendar's side panel. */
+export function quickPicks(today: Date): QuickPick[] {
+  const day = today.getDay(); // 0 = Sunday
+  const saturday = day === 6 || day === 0 ? today : addDays(today, 6 - day);
+  const nextMonday = addDays(today, ((8 - day) % 7) || 7);
+  return [
+    { label: 'Today', date: today },
+    { label: 'Tomorrow', date: addDays(today, 1) },
+    { label: 'This weekend', date: saturday },
+    { label: 'Next week', date: nextMonday },
+    { label: 'In 2 weeks', date: addDays(today, 14) },
+    { label: 'Next month', date: addMonths(today, 1) },
+  ];
+}

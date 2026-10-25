@@ -33,7 +33,7 @@ export function App() {
   const [areaId, setAreaId] = useState('');
   const [areas, setAreas] = useState<Area[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
-  const [known, setKnown] = useState<KnownTokens>({ contexts: [], tags: [] });
+  const [known, setKnown] = useState<KnownTokens>({ contexts: [], tags: [], due: [] });
   const [apiError, setApiError] = useState<ApiError | null>(null);
   const [status, setStatus] = useState<Status>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -144,9 +144,14 @@ export function App() {
     if (typing.tagSuggest.enabled) sources.push({ marker: '#', names: bare(known.tags, '#'), ...typing.tagSuggest });
     return sources;
   }, [typing, areas, projects, known]);
+  const dueByDate = useMemo(() => {
+    const byDate = new Map<string, string[]>();
+    for (const task of known.due) byDate.set(task.date, [...(byDate.get(task.date) ?? []), task.title]);
+    return byDate;
+  }, [known.due]);
   const datePicker = useMemo(
-    () => (typing?.datePicker ? { weekStart: typing.weekStart } : undefined),
-    [typing?.datePicker, typing?.weekStart],
+    () => (typing?.datePicker ? { weekStart: typing.weekStart, dueByDate } : undefined),
+    [typing?.datePicker, typing?.weekStart, dueByDate],
   );
   const bulkLines = useMemo(
     () => (view === 'bulk' ? safeParseBulk(bulkText, ctx, defaults) : []),
