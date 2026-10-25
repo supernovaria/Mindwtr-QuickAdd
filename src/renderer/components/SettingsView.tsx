@@ -46,6 +46,7 @@ export function SettingsView({ onDone, onSaved }: Props) {
   const [port, setPort] = useState('');
   const [token, setToken] = useState('');
   const [startAtLogin, setStartAtLogin] = useState(false);
+  const [minimalInterface, setMinimalInterface] = useState(false);
   const [info, setInfo] = useState<ConnectionInfo | null>(null);
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
   const [recordingKey, setRecordingKey] = useState(false);
@@ -57,6 +58,7 @@ export function SettingsView({ onDone, onSaved }: Props) {
       setPort(s.apiPort ? String(s.apiPort) : '');
       setToken(s.apiToken ?? '');
       setStartAtLogin(s.startAtLogin);
+      setMinimalInterface(s.minimalInterface);
     });
     void bridge.connectionInfo().then(setInfo);
   }, []);
@@ -72,6 +74,7 @@ export function SettingsView({ onDone, onSaved }: Props) {
       apiPort: portNumber,
       apiToken: token.trim() || null,
       startAtLogin,
+      minimalInterface,
     });
     setSettings(result.settings);
     setHotkey(result.settings.hotkey);
@@ -152,6 +155,10 @@ export function SettingsView({ onDone, onSaved }: Props) {
       <label className="checkbox">
         <input type="checkbox" checked={startAtLogin} onChange={(e) => setStartAtLogin(e.target.checked)} />
         <span>Start QuickAdd when I sign in{bridge.isElectron ? '' : ' (desktop app only)'}</span>
+      </label>
+      <label className="checkbox">
+        <input type="checkbox" checked={minimalInterface} onChange={(e) => setMinimalInterface(e.target.checked)} />
+        <span>Minimal interface (hide the example line, show syntax help as "?")</span>
       </label>
       {message ? (
         <p className={message.error ? 'error-text' : 'ok-text'} role={message.error ? 'alert' : 'status'}>

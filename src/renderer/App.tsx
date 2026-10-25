@@ -38,6 +38,7 @@ export function App() {
   const [helpOpen, setHelpOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [recording, setRecording] = useState(false);
+  const [minimal, setMinimal] = useState(false);
 
   const cardRef = useRef<HTMLDivElement>(null);
   const fieldRef = useRef<HighlightedFieldHandle>(null);
@@ -56,7 +57,10 @@ export function App() {
 
   useEffect(() => {
     void refresh();
-    void bridge.getSettings().then((s) => setAreaId(s.lastAreaId));
+    void bridge.getSettings().then((s) => {
+      setAreaId(s.lastAreaId);
+      setMinimal(s.minimalInterface);
+    });
   }, [refresh]);
 
   const focusInput = useCallback((which: View = view) => {
@@ -99,6 +103,7 @@ export function App() {
   );
   const parsed = useMemo(() => safeParse(text, ctx, defaults), [text, ctx, defaults]);
   const chips = useMemo(() => chipsFor(parsed, areas, projects), [parsed, areas, projects]);
+  const completions = useMemo(() => [{ marker: '!', names: areas.map((a) => a.name) }], [areas]);
   const bulkLines = useMemo(
     () => (view === 'bulk' ? safeParseBulk(bulkText, ctx, defaults) : []),
     [view, bulkText, ctx, defaults],
@@ -258,7 +263,7 @@ export function App() {
   // Esc hides from anywhere (the menu closes first).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
+      if (e.key !== 'Escape' || e.defaultPrevented) return;
       e.preventDefault();
       if (menuOpen) setMenuOpen(false);
       else if (!recording) hide();
@@ -305,7 +310,7 @@ export function App() {
   const helpToggle = (
     <button type="button" className="disclosure" aria-expanded={helpOpen} onClick={() => setHelpOpen((o) => !o)}>
       <span className="disclosure-caret" aria-hidden="true">▸</span>
-      Quick Add syntax help
+      {minimal ? <span aria-label="Quick Add syntax help" title="Quick Add syntax help">?</span> : 'Quick Add syntax help'}
     </button>
   );
 
@@ -354,7 +359,10 @@ export function App() {
             setView('text');
             focusInput('text');
           }}
-          onSaved={() => void refresh()}
+          onSaved={() => {
+            void refresh();
+            void bridge.getSettings().then((s) => setMinimal(s.minimalInterface));
+          }}
         />
       ) : view === 'bulk' ? (
         <form
@@ -370,6 +378,7 @@ export function App() {
             value={bulkText}
             onChange={setBulkText}
             highlights={bulkSpans}
+            completions={completions}
             minRows={4}
             maxRows={10}
             ariaLabel="Tasks, one per line"
@@ -455,6 +464,7 @@ export function App() {
               if (status?.kind === 'error') setStatus(null);
             }}
             highlights={parsed.highlights}
+            completions={completions}
             maxRows={5}
             ariaLabel="Task"
             placeholder="Add Task"
@@ -469,7 +479,7 @@ export function App() {
           </HighlightedField>
           <PreviewChips chips={chips} />
           {areaSelect}
-          <p className="muted small">{QUICK_ADD_EXAMPLE}</p>
+          {minimal ? null : <p className="muted small">{QUICK_ADD_EXAMPLE}</p>}
           {errorBanner}
           <div className="footer-row">
             {helpToggle}

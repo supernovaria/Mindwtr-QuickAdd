@@ -11,6 +11,7 @@ const AREAS: Area[] = [
   { id: 'area-work', name: 'Work', color: '#2563eb', order: 0, createdAt: now, updatedAt: now },
   { id: 'area-home', name: 'Home', color: '#16a34a', order: 1, createdAt: now, updatedAt: now },
   { id: 'area-personal', name: 'Personal', color: '#9333ea', order: 2, createdAt: now, updatedAt: now },
+  { id: 'area-home-admin', name: 'Home & Admin', color: '#d97706', order: 3, createdAt: now, updatedAt: now },
 ];
 
 const PROJECTS: Project[] = [
@@ -39,6 +40,7 @@ export function createMockBridge(): QuickAddBridge {
     apiToken: null,
     startAtLogin: false,
     lastAreaId: '',
+    minimalInterface: false,
   };
   const showListeners = new Set<(event: ShowEvent) => void>();
   document.documentElement.classList.add('web-mock');

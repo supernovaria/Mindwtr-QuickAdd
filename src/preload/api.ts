@@ -49,6 +49,8 @@ export interface Settings {
   startAtLogin: boolean;
   /** Area last chosen in the Area select ("" = no area). */
   lastAreaId: string;
+  /** Hides the example line and shortens the syntax-help toggle to "?". */
+  minimalInterface: boolean;
 }
 
 export interface ConnectionInfo {
