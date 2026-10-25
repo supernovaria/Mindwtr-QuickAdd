@@ -10,35 +10,23 @@ input is parsed exactly as Mindwtr parses it. See `SPEC.md` for the original des
 
 ## Screenshots
 
-Shown in your GitHub theme (light or dark); QuickAdd itself follows the Windows theme.
+Each shot is split diagonally between light and dark; QuickAdd follows the Windows theme.
 
 **Capture with the calendar**: highlighted tokens, parsed-field chips, and the date side panel (distance, quick picks, what is already due).
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/capture-calendar-dark.png">
-  <img alt="Capture window with calendar and date side panel" src="docs/screenshots/capture-calendar-light.png" width="640">
-</picture>
+<img alt="Capture window with calendar and date side panel" src="docs/screenshots/capture-calendar.png" width="640">
 
 **Suggestions** for `+Project`, `@context` and `#tag`, plus `tmrw` parsed as a due date.
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/suggestions-dark.png">
-  <img alt="Tag suggestions list while typing" src="docs/screenshots/suggestions-light.png" width="640">
-</picture>
+<img alt="Tag suggestions list while typing" src="docs/screenshots/suggestions.png" width="640">
 
 **Bulk add**: one task per line, each parsed and previewed before saving.
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/bulk-add-dark.png">
-  <img alt="Bulk add view" src="docs/screenshots/bulk-add-light.png" width="640">
-</picture>
+<img alt="Bulk add view" src="docs/screenshots/bulk-add.png" width="640">
 
 **Settings**: shortcut, Local API override, interface mode, suggestion thresholds, calendar panel parts, tab completion, week start, clipboard links.
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/settings-dark.png">
-  <img alt="Settings view" src="docs/screenshots/settings-light.png" width="640">
-</picture>
+<img alt="Settings view" src="docs/screenshots/settings.png" width="640">
 
 ## 1. Turn on Mindwtr's Local API
 
