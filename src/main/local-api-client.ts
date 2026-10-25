@@ -16,7 +16,7 @@ import { resolveConnection, type ResolvedConnection } from './local-api-config';
 const REQUEST_TIMEOUT_MS = 5000;
 
 export const ENABLE_HINT =
-  'In Mindwtr, open Settings → Integrations and turn on "Enable local API server", then try again.';
+  'In Mindwtr, open Settings → Advanced and turn on "Enable local API server", then try again.';
 
 type SettingsSource = () => Pick<Settings, 'apiPort' | 'apiToken'>;
 
@@ -37,7 +37,7 @@ export class LocalApiClient {
         message:
           conn.enabledInConfig === false || conn.configDir === null
             ? `Mindwtr's Local API is off. ${ENABLE_HINT}`
-            : 'No Local API token found in Mindwtr\'s config. Copy the token from Mindwtr (Settings → Integrations) into QuickAdd Settings.',
+            : 'No Local API token found in Mindwtr\'s config. Copy the token from Mindwtr (Settings → Advanced) into QuickAdd Settings.',
       });
     }
     let response: Response;
@@ -57,7 +57,7 @@ export class LocalApiClient {
         message:
           conn.enabledInConfig === false
             ? `Mindwtr's Local API is off. ${ENABLE_HINT}`
-            : `Can't reach Mindwtr on 127.0.0.1:${conn.port}. Make sure Mindwtr is running with the Local API enabled (Settings → Integrations).`,
+            : `Can't reach Mindwtr on 127.0.0.1:${conn.port}. Make sure Mindwtr is running with the Local API enabled (Settings → Advanced).`,
       });
     }
     let json: unknown = null;

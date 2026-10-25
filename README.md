@@ -10,7 +10,7 @@ AGPL-3.0, like Mindwtr. See `SPEC.md` for the design contract.
 
 QuickAdd talks to Mindwtr over `http://127.0.0.1:<port>` with a bearer token. This is off by default.
 
-1. Open Mindwtr → **Settings → Integrations**.
+1. Open Mindwtr → **Settings → Advanced**.
 2. Turn on **Enable local API server**. Leave the port at 3456 unless it clashes with something.
 3. Keep Mindwtr running (it can be minimised). QuickAdd shows a red notice if it can't reach it.
 

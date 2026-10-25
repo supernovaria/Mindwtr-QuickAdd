@@ -22,7 +22,7 @@ const PROJECTS: Project[] = [
 const ERROR_MESSAGES: Record<string, ApiError> = {
   unreachable: {
     code: 'unreachable',
-    message: 'Mindwtr\'s Local API is off. In Mindwtr, open Settings → Integrations and turn on "Enable local API server", then try again.',
+    message: 'Mindwtr\'s Local API is off. In Mindwtr, open Settings → Advanced and turn on "Enable local API server", then try again.',
   },
   'no-token': { code: 'no-token', message: 'No Local API token found in Mindwtr\'s config.' },
   unauthorized: { code: 'unauthorized', status: 401, message: 'Mindwtr rejected the API token.' },

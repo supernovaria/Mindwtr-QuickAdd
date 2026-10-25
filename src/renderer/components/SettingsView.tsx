@@ -147,7 +147,7 @@ export function SettingsView({ onDone, onSaved }: Props) {
         Leave both empty to read them from Mindwtr's config
         {info?.configDir ? <> (<code title={info.configDir}>…\{info.configDir.split(/[\\/]/).slice(-4).join('\\')}</code>)</> : ' (not found)'}.
         {info ? ` Now using port ${info.port} (${info.portSource}), token: ${info.tokenSource}.` : ''}
-        {info?.enabledInConfig === false ? ' Mindwtr reports the Local API as off: enable it in Mindwtr → Settings → Integrations.' : ''}
+        {info?.enabledInConfig === false ? ' Mindwtr reports the Local API as off: enable it in Mindwtr → Settings → Advanced.' : ''}
       </p>
       <label className="checkbox">
         <input type="checkbox" checked={startAtLogin} onChange={(e) => setStartAtLogin(e.target.checked)} />
