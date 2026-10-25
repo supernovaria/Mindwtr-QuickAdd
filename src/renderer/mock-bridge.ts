@@ -45,6 +45,7 @@ export function createMockBridge(): QuickAddBridge {
     projectSuggest: { enabled: true, minChars: 1, maxItems: 5 },
     datePicker: true,
     weekStart: 'monday',
+    tabCompletion: true,
   };
   const showListeners = new Set<(event: ShowEvent) => void>();
   document.documentElement.classList.add('web-mock');

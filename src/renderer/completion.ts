@@ -83,6 +83,61 @@ export function applyDate(text: string, command: ActiveDateCommand, isoDate: str
   return replaceRange(text, command.at, command.at, isoDate);
 }
 
+// ---- Tab completion of commands, shell style ------------------------------------
+
+/**
+ * Every command Mindwtr's quick-add parser understands, dates first. `:`
+ * commands take a value. start/due/review also work without the slash, so they
+ * complete bare unless a slash was typed.
+ */
+const COMMANDS = [
+  'due:', 'start:', 'review:',
+  'priority:', 'energy:', 'estimate:', 'duration:', 'note:', 'link:', 'project:', 'area:',
+  'next', 'inbox', 'waiting', 'someday', 'reference', 'in-progress', 'done', 'archived',
+];
+const BARE_COMMANDS = new Set(['due:', 'start:', 'review:']);
+const COMMAND_VALUES: Record<string, string[]> = {
+  priority: ['urgent', 'high', 'medium', 'low'],
+  energy: ['low', 'medium', 'high'],
+};
+
+export interface TabCompletion {
+  /** Start of the word being completed. */
+  start: number;
+  /** Replacements for the word, in cycling order. */
+  options: string[];
+}
+
+/**
+ * What Tab can turn the word ending at the caret into: a command (`d` → `due:`,
+ * `/n` → `/next`, `/note:`), or a command value (`/priority:h` → `/priority:high`).
+ * Null when nothing matches, so Tab keeps its usual meaning.
+ */
+export function tabCompletion(text: string, caret: number): TabCompletion | null {
+  if (/^\S/.test(text.slice(caret))) return null;
+  const word = text.slice(0, caret).match(/(?:^|\s)(\S+)$/)?.[1];
+  if (!word) return null;
+  const start = caret - word.length;
+
+  const valueMatch = word.match(/^(\/?)(priority|energy):([a-z]*)$/i);
+  if (valueMatch) {
+    const [, slash, command, typed] = valueMatch;
+    const options = COMMAND_VALUES[command.toLowerCase()]
+      .filter((value) => value.startsWith(typed.toLowerCase()))
+      .map((value) => `${slash}${command}:${value}`);
+    return options.length > 0 ? { start, options } : null;
+  }
+
+  const commandMatch = word.match(/^(\/?)([a-z-]*)$/i);
+  if (!commandMatch) return null;
+  const [, slash, typed] = commandMatch;
+  if (!slash && !typed) return null;
+  const options = COMMANDS
+    .filter((command) => command.startsWith(typed.toLowerCase()))
+    .map((command) => (slash || !BARE_COMMANDS.has(command) ? `/${command}` : command));
+  return options.length > 0 ? { start, options } : null;
+}
+
 function replaceRange(text: string, start: number, end: number, inserted: string): { text: string; caret: number } {
   const after = text.slice(end);
   const spacer = after.startsWith(' ') ? '' : ' ';

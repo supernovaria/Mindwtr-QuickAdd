@@ -71,6 +71,8 @@ export interface Settings {
   /** Calendar after `due:`, `start:` and `review:`. */
   datePicker: boolean;
   weekStart: 'monday' | 'sunday';
+  /** Tab completes commands (`d` → `due:`) and cycles on repeat. */
+  tabCompletion: boolean;
 }
 
 export interface ConnectionInfo {

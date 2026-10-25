@@ -5,7 +5,7 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent, ReactNode } from 'react';
 import { segment, type HighlightSpan } from '../capture';
-import { activeDateCommand, activeToken, applyCompletion, applyDate, rankSuggestions } from '../completion';
+import { activeDateCommand, activeToken, applyCompletion, applyDate, rankSuggestions, tabCompletion, type TabCompletion } from '../completion';
 import { addDays, addMonths, firstSameWeekday, lastSameWeekday, startOfDay, toIsoDate, type WeekStart } from '../calendar';
 import { DatePicker } from './DatePicker';
 
@@ -36,6 +36,8 @@ interface Props {
   completions?: CompletionSource[];
   /** Calendar after an empty `due:`/`start:`/`review:`; omit to turn it off. */
   datePicker?: { weekStart: WeekStart };
+  /** Tab completes commands (`d` → `due:`); pressing it again cycles. */
+  tabComplete?: boolean;
 }
 
 export interface HighlightedFieldHandle {
@@ -43,7 +45,7 @@ export interface HighlightedFieldHandle {
 }
 
 export const HighlightedField = forwardRef<HighlightedFieldHandle, Props>(function HighlightedField(
-  { value, onChange, highlights, onKeyDown, placeholder, maxRows = 6, minRows = 1, className, ariaLabel, disabled, children, completions, datePicker },
+  { value, onChange, highlights, onKeyDown, placeholder, maxRows = 6, minRows = 1, className, ariaLabel, disabled, children, completions, datePicker, tabComplete },
   ref,
 ) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -68,7 +70,12 @@ export const HighlightedField = forwardRef<HighlightedFieldHandle, Props>(functi
   const [navigated, setNavigated] = useState(false);
   const [dismissed, setDismissed] = useState<string | null>(null);
   const [pickerDate, setPickerDate] = useState(() => startOfDay(new Date()));
+  const [cycle, setCycle] = useState<(TabCompletion & { index: number }) | null>(null);
   const pendingCaret = useRef<number | null>(null);
+
+  // The Tab cycle continues only while the text still holds what it last inserted.
+  const cycleActive =
+    cycle !== null && value.slice(cycle.start, caret) === cycle.options[cycle.index] ? cycle : null;
 
   const dateCommand = useMemo(() => (datePicker ? activeDateCommand(value, caret) : null), [datePicker, value, caret]);
   const suggestion = useMemo(() => {
@@ -123,12 +130,34 @@ export const HighlightedField = forwardRef<HighlightedFieldHandle, Props>(functi
     if (dateCommand) replaceWith(applyDate(value, dateCommand, toIsoDate(date)));
   };
 
+  const replaceSpan = (start: number, end: number, inserted: string) => {
+    pendingCaret.current = start + inserted.length;
+    onChange(value.slice(0, start) + inserted + value.slice(end));
+  };
+
   const isAccept = (event: KeyboardEvent<HTMLTextAreaElement>) =>
     event.key === ' ' || event.key === 'Tab' || (event.key === 'Enter' && !event.shiftKey && !event.ctrlKey && !event.metaKey);
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.nativeEvent.isComposing) return onKeyDown?.(event);
     const { key, shiftKey } = event;
+    if (key === 'Tab' && tabComplete && !event.ctrlKey && !event.altKey && !event.metaKey) {
+      if (cycleActive) {
+        event.preventDefault();
+        const count = cycleActive.options.length;
+        const index = (cycleActive.index + (shiftKey ? count - 1 : 1)) % count;
+        setCycle({ ...cycleActive, index });
+        replaceSpan(cycleActive.start, caret, cycleActive.options[index]);
+        return;
+      }
+      const found = !shiftKey && !pickerOpen && !listOpen ? tabCompletion(value, caret) : null;
+      if (found) {
+        event.preventDefault();
+        setCycle({ ...found, index: 0 });
+        replaceSpan(found.start, caret, found.options[0]);
+        return;
+      }
+    }
     if ((pickerOpen || listOpen) && key === 'Escape') {
       event.preventDefault();
       event.stopPropagation();
@@ -235,6 +264,16 @@ export const HighlightedField = forwardRef<HighlightedFieldHandle, Props>(functi
       />
       {children}
     </div>
+    {cycleActive && cycleActive.options.length > 1 ? (
+      <div className="cycle-hint" aria-live="polite">
+        <span className="cycle-key">Tab</span>
+        {cycleActive.options.map((option, index) => (
+          <span key={option} className={index === cycleActive.index ? 'cycle-option current' : 'cycle-option'}>
+            {option}
+          </span>
+        ))}
+      </div>
+    ) : null}
     {pickerOpen && dateCommand && datePicker ? (
       <DatePicker
         command={dateCommand.command}

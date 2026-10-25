@@ -39,7 +39,7 @@ export function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [recording, setRecording] = useState(false);
   const [ui, setUi] = useState<InterfaceMode>('full');
-  const [typing, setTyping] = useState<Pick<Settings, 'areaSuggest' | 'projectSuggest' | 'datePicker' | 'weekStart'> | null>(null);
+  const [typing, setTyping] = useState<Pick<Settings, 'areaSuggest' | 'projectSuggest' | 'datePicker' | 'weekStart' | 'tabCompletion'> | null>(null);
 
   const cardRef = useRef<HTMLDivElement>(null);
   const fieldRef = useRef<HighlightedFieldHandle>(null);
@@ -419,6 +419,7 @@ export function App() {
             highlights={bulkSpans}
             completions={completions}
             datePicker={datePicker}
+            tabComplete={typing?.tabCompletion ?? false}
             minRows={4}
             maxRows={10}
             ariaLabel="Tasks, one per line"
@@ -503,6 +504,7 @@ export function App() {
             highlights={parsed.highlights}
             completions={completions}
             datePicker={datePicker}
+            tabComplete={typing?.tabCompletion ?? false}
             maxRows={5}
             ariaLabel="Task"
             placeholder="Add Task"

@@ -51,6 +51,7 @@ export function SettingsView({ onDone, onSaved }: Props) {
   const [projectSuggest, setProjectSuggest] = useState<SuggestDraft>(toDraft(DEFAULT_SUGGEST));
   const [datePicker, setDatePicker] = useState(true);
   const [weekStart, setWeekStart] = useState<Settings['weekStart']>('monday');
+  const [tabCompletion, setTabCompletion] = useState(true);
   const [info, setInfo] = useState<ConnectionInfo | null>(null);
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
   const [recordingKey, setRecordingKey] = useState(false);
@@ -67,6 +68,7 @@ export function SettingsView({ onDone, onSaved }: Props) {
       setProjectSuggest(toDraft(s.projectSuggest));
       setDatePicker(s.datePicker);
       setWeekStart(s.weekStart);
+      setTabCompletion(s.tabCompletion);
     });
     void bridge.connectionInfo().then(setInfo);
   }, []);
@@ -93,6 +95,7 @@ export function SettingsView({ onDone, onSaved }: Props) {
       projectSuggest: project,
       datePicker,
       weekStart,
+      tabCompletion,
     });
     setSettings(result.settings);
     setHotkey(result.settings.hotkey);
@@ -189,6 +192,10 @@ export function SettingsView({ onDone, onSaved }: Props) {
         <label className="checkbox">
           <input type="checkbox" checked={datePicker} onChange={(e) => setDatePicker(e.target.checked)} />
           <span>Calendar after due:, start: and review:</span>
+        </label>
+        <label className="checkbox">
+          <input type="checkbox" checked={tabCompletion} onChange={(e) => setTabCompletion(e.target.checked)} />
+          <span>Tab completes commands (d → due:, press again to cycle)</span>
         </label>
         <label className="inline-field">
           <span>Week starts on</span>

@@ -16,6 +16,7 @@ export const DEFAULT_SETTINGS: Settings = {
   projectSuggest: { enabled: true, minChars: 1, maxItems: 5 },
   datePicker: true,
   weekStart: 'monday',
+  tabCompletion: true,
 };
 
 function normalizeSuggest(raw: unknown, fallback: SuggestSettings): SuggestSettings {
@@ -48,6 +49,7 @@ export function normalizeSettings(raw: unknown): Settings {
     projectSuggest: normalizeSuggest(input.projectSuggest, DEFAULT_SETTINGS.projectSuggest),
     datePicker: input.datePicker !== false,
     weekStart: input.weekStart === 'sunday' ? 'sunday' : 'monday',
+    tabCompletion: input.tabCompletion !== false,
   };
 }
 
