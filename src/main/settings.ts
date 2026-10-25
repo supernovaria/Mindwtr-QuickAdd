@@ -17,6 +17,7 @@ export const DEFAULT_SETTINGS: Settings = {
   datePicker: true,
   weekStart: 'monday',
   tabCompletion: true,
+  clipboardLinks: true,
 };
 
 function normalizeSuggest(raw: unknown, fallback: SuggestSettings): SuggestSettings {
@@ -50,6 +51,7 @@ export function normalizeSettings(raw: unknown): Settings {
     datePicker: input.datePicker !== false,
     weekStart: input.weekStart === 'sunday' ? 'sunday' : 'monday',
     tabCompletion: input.tabCompletion !== false,
+    clipboardLinks: input.clipboardLinks !== false,
   };
 }
 

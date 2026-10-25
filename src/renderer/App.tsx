@@ -10,6 +10,7 @@ import {
   type CaptureContext,
   type CaptureDefaults,
 } from './capture';
+import { appendLink, linkLabel } from './clipboard-link';
 import { AudioCapture, audioUnsupportedReason } from './components/AudioCapture';
 import { HighlightedField, type HighlightedFieldHandle } from './components/HighlightedField';
 import { PreviewChips } from './components/PreviewChips';
@@ -39,11 +40,13 @@ export function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [recording, setRecording] = useState(false);
   const [ui, setUi] = useState<InterfaceMode>('full');
+  const [clipLink, setClipLink] = useState<string | null>(null);
   const [typing, setTyping] = useState<Pick<Settings, 'areaSuggest' | 'projectSuggest' | 'datePicker' | 'weekStart' | 'tabCompletion'> | null>(null);
 
   const cardRef = useRef<HTMLDivElement>(null);
   const fieldRef = useRef<HighlightedFieldHandle>(null);
   const bulkRef = useRef<HighlightedFieldHandle>(null);
+  const offeredLink = useRef<string | null>(null);
   const audioUnsupported = useMemo(() => audioUnsupportedReason(), []);
 
   // ---- data from Mindwtr -------------------------------------------------
@@ -79,6 +82,12 @@ export function App() {
         setView(next);
         focusInput(next);
         void refresh();
+        // A URL on the clipboard is offered once, until a different one is copied.
+        void bridge.clipboardLink().then((url) => {
+          const fresh = url !== null && url !== offeredLink.current;
+          if (fresh) offeredLink.current = url;
+          setClipLink(fresh ? url : null);
+        }, () => setClipLink(null));
       }),
     [view, focusInput, refresh],
   );
@@ -297,6 +306,14 @@ export function App() {
     setView('text');
     focusInput('text');
   }
+
+  const addClipLink = () => {
+    if (!clipLink) return;
+    const next = appendLink(text, clipLink);
+    setText(next.text);
+    setClipLink(null);
+    requestAnimationFrame(() => fieldRef.current?.select(...next.selection));
+  };
 
   const changeArea = (next: string) => {
     setAreaId(next);
@@ -521,6 +538,9 @@ export function App() {
               if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
                 e.preventDefault();
                 void saveText(true);
+              } else if (clipLink && e.key.toLowerCase() === 'l' && (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey) {
+                e.preventDefault();
+                addClipLink();
               } else if (e.key === 'Enter' && !e.shiftKey && !e.altKey) {
                 e.preventDefault();
                 void saveText();
@@ -529,6 +549,11 @@ export function App() {
           >
             {starButton}
           </HighlightedField>
+          {clipLink ? (
+            <button type="button" className="clip-offer" title={clipLink} onClick={addClipLink}>
+              Clipboard: <span className="clip-offer-label">{linkLabel(clipLink)}</span> · Ctrl+L to add as link
+            </button>
+          ) : null}
           <PreviewChips chips={chips} />
           {ui === 'minimal' ? null : areaSelect}
           {ui === 'full' ? <p className="muted small">{QUICK_ADD_EXAMPLE}</p> : null}

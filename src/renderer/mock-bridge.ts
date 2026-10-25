@@ -1,9 +1,11 @@
 // Stand-in for the Electron preload bridge when the renderer runs in a normal
 // browser tab (`npm run dev:web`). Saves just log to the console.
 // Add `?mockError=unreachable` (or no-token / unauthorized) to the URL to see
-// the "Local API is off" states.
+// the "Local API is off" states, and `?clipboard=<url>` to fake a URL on the
+// clipboard (offered when the window is shown again, e.g. after Esc).
 import type { Area, Project } from '../../vendor/mindwtr-core/src/types';
 import type { ApiError, ApiResult, QuickAddBridge, Settings, ShowEvent } from '../preload/api';
+import { singleHttpUrl } from './clipboard-link';
 
 const now = new Date().toISOString();
 
@@ -46,6 +48,7 @@ export function createMockBridge(): QuickAddBridge {
     datePicker: true,
     weekStart: 'monday',
     tabCompletion: true,
+    clipboardLinks: true,
   };
   const showListeners = new Set<(event: ShowEvent) => void>();
   document.documentElement.classList.add('web-mock');
@@ -113,6 +116,10 @@ export function createMockBridge(): QuickAddBridge {
     },
     async connectionInfo() {
       return { port: 3456, portSource: 'default', tokenSource: 'none', configDir: null, enabledInConfig: null };
+    },
+    async clipboardLink() {
+      const fake = new URLSearchParams(window.location.search).get('clipboard') ?? '';
+      return settings.clipboardLinks ? singleHttpUrl(fake) : null;
     },
     onShow(callback) {
       showListeners.add(callback);

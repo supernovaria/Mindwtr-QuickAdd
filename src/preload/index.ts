@@ -16,6 +16,7 @@ const bridge: QuickAddBridge = {
   getSettings: () => ipcRenderer.invoke(IPC.getSettings),
   setSettings: (patch) => ipcRenderer.invoke(IPC.setSettings, patch),
   connectionInfo: () => ipcRenderer.invoke(IPC.connectionInfo),
+  clipboardLink: () => ipcRenderer.invoke(IPC.clipboardLink),
   onShow: (callback) => {
     const listener = (_event: IpcRendererEvent, payload: ShowEvent) => callback(payload ?? {});
     ipcRenderer.on(IPC.shown, listener);

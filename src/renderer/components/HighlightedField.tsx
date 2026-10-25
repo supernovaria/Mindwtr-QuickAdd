@@ -7,6 +7,7 @@ import type { KeyboardEvent, ReactNode } from 'react';
 import { segment, type HighlightSpan } from '../capture';
 import { activeDateCommand, activeToken, applyCompletion, applyDate, applyDateRange, cycleDateCommand, rankSuggestions, tabCompletion, type TabCompletion } from '../completion';
 import { addDays, addMonths, firstSameWeekday, lastSameWeekday, sameDay, startOfDay, toIsoDate, type WeekStart } from '../calendar';
+import { typedDateCommand, type TypedDateCommand } from '../date-value';
 import { DatePicker } from './DatePicker';
 
 /** Names offered while typing `<marker><name>`, e.g. areas after `!`. */
@@ -42,6 +43,8 @@ interface Props {
 
 export interface HighlightedFieldHandle {
   focus: () => void;
+  /** Focuses and selects [start, end). */
+  select: (start: number, end: number) => void;
 }
 
 export const HighlightedField = forwardRef<HighlightedFieldHandle, Props>(function HighlightedField(
@@ -58,6 +61,10 @@ export const HighlightedField = forwardRef<HighlightedFieldHandle, Props>(functi
       if (!el) return;
       el.focus();
       el.setSelectionRange(el.value.length, el.value.length);
+    },
+    select: (start, end) => {
+      textareaRef.current?.focus();
+      textareaRef.current?.setSelectionRange(start, end);
     },
   }));
 
@@ -82,7 +89,16 @@ export const HighlightedField = forwardRef<HighlightedFieldHandle, Props>(functi
   const cycleActive =
     cycle !== null && value.slice(cycle.start, caret) === cycle.options[cycle.index] ? cycle : null;
 
-  const dateCommand = useMemo(() => (datePicker ? activeDateCommand(value, caret) : null), [datePicker, value, caret]);
+  const dateCommand = useMemo(
+    () => (datePicker ? activeDateCommand(value, caret) ?? typedDateCommand(value, caret, new Date()) : null),
+    [datePicker, value, caret],
+  );
+  // A value typed after the command (`due:fri`): the calendar shows its date.
+  // There only Tab picks (replacing the value); Space and Enter stay text/save.
+  const typed = dateCommand && 'date' in dateCommand ? (dateCommand as TypedDateCommand) : null;
+  const typedIso = typed?.date ? toIsoDate(typed.date) : null;
+  /** The command the calendar last (re)started for, and the typed date it showed. */
+  const [followed, setFollowed] = useState<{ start?: number; iso: string | null }>({ iso: null });
   const suggestion = useMemo(() => {
     if (dateCommand) return null;
     for (const source of completions ?? []) {
@@ -95,7 +111,12 @@ export const HighlightedField = forwardRef<HighlightedFieldHandle, Props>(functi
   }, [dateCommand, value, caret, completions]);
 
   const popupKey = dateCommand ? `date:${dateCommand.start}` : suggestion ? `list:${suggestion.token.start}` : null;
-  const pickerOpen = dateCommand !== null && dismissed !== popupKey;
+  // While a typed value doesn't resolve, the last date it did resolve to stays
+  // up, dimmed; with none yet, the calendar waits.
+  const pickerOpen =
+    dateCommand !== null && dismissed !== popupKey &&
+    (!typed || typedIso !== null || (followed.start === typed.start && followed.iso !== null));
+  const tentative = typed !== null && !typed.exact && pickerAnchor === null && followed.iso === toIsoDate(pickerDate);
   const listOpen = suggestion !== null && dismissed !== popupKey;
   const selected = suggestion ? Math.min(activeIndex, suggestion.items.length - 1) : 0;
 
@@ -106,18 +127,21 @@ export const HighlightedField = forwardRef<HighlightedFieldHandle, Props>(functi
   useEffect(() => {
     if (popupKey === null) setDismissed(null);
   }, [popupKey]);
-  // Every new date command starts on today.
+  // Every new date command starts on today, or on the date typed after it, and
+  // follows that date as the value is edited (arrows move on from there).
   // (Keyed on where the command starts, so cycling start/due/review keeps the date.
   // Swapping the word goes through one render where the caret still sits at the
   // old position and no command is found, so only a different start resets.)
+  // A layout effect, so a changed date never paints a frame of the old one.
   const dateStart = dateCommand?.start;
-  const lastDateStart = useRef<number | undefined>(undefined);
-  useEffect(() => {
-    if (dateStart === undefined || dateStart === lastDateStart.current) return;
-    lastDateStart.current = dateStart;
-    setPickerDate(startOfDay(new Date()));
+  useLayoutEffect(() => {
+    if (dateStart === undefined) return;
+    const isNew = dateStart !== followed.start;
+    if (!isNew && (typedIso === null || typedIso === followed.iso)) return;
+    setFollowed({ start: dateStart, iso: typedIso });
+    setPickerDate(typed?.date ?? startOfDay(new Date()));
     setPickerAnchor(null);
-  }, [dateStart]);
+  }, [dateStart, typedIso]);
   useEffect(() => {
     listRef.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' });
   }, [selected, listOpen]);
@@ -138,15 +162,25 @@ export const HighlightedField = forwardRef<HighlightedFieldHandle, Props>(functi
   const acceptName = (name: string) => {
     if (suggestion) replaceWith(applyCompletion(value, suggestion.token, name));
   };
+  // A picked date is a typed value too, so the calendar would stay up over it:
+  // picking dismisses it until the caret leaves that command.
+  const replaceWithDate = (next: { text: string; caret: number }) => {
+    const after = typedDateCommand(next.text, next.caret, new Date());
+    if (after) setDismissed(`date:${after.start}`);
+    replaceWith(next);
+  };
   const acceptDate = (date: Date) => {
-    if (dateCommand) replaceWith(applyDate(value, dateCommand, toIsoDate(date)));
+    if (dateCommand) replaceWithDate(applyDate(value, dateCommand, toIsoDate(date)));
   };
   const acceptRange = (first: Date, last: Date) => {
-    if (dateCommand) replaceWith(applyDateRange(value, dateCommand, toIsoDate(first), toIsoDate(last)));
+    if (dateCommand) replaceWithDate(applyDateRange(value, dateCommand, toIsoDate(first), toIsoDate(last)));
   };
   const rangeAllowed = dateCommand?.command === 'start' || dateCommand?.command === 'due';
   const cycleCommand = () => {
-    if (dateCommand) replaceWith(cycleDateCommand(value, dateCommand));
+    if (!dateCommand) return;
+    const next = cycleDateCommand(value, dateCommand);
+    // Over a typed value, the caret stays where it was in the value.
+    replaceWith(typed ? { ...next, caret: caret + next.text.length - value.length } : next);
   };
 
   const replaceSpan = (start: number, end: number, inserted: string) => {
@@ -195,7 +229,7 @@ export const HighlightedField = forwardRef<HighlightedFieldHandle, Props>(functi
         setPickerDate(moves[key]);
         return;
       }
-      if (isAccept(event)) {
+      if (typed ? key === 'Tab' : isAccept(event)) {
         event.preventDefault();
         if (pickerAnchor && rangeAllowed && !sameDay(pickerAnchor, pickerDate)) {
           const [first, last] = pickerAnchor < pickerDate ? [pickerAnchor, pickerDate] : [pickerDate, pickerAnchor];
@@ -309,6 +343,8 @@ export const HighlightedField = forwardRef<HighlightedFieldHandle, Props>(functi
         today={startOfDay(new Date())}
         weekStart={datePicker.weekStart}
         allowRange={rangeAllowed}
+        tentative={tentative}
+        tabOnly={typed !== null}
         onPick={acceptDate}
         onPickRange={acceptRange}
         onCycleCommand={cycleCommand}

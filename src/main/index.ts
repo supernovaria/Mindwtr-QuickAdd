@@ -3,6 +3,7 @@
 import {
   app,
   BrowserWindow,
+  clipboard,
   dialog,
   globalShortcut,
   ipcMain,
@@ -17,6 +18,7 @@ import {
 import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { IPC, type CreateTaskInput, type Settings, type ShowEvent } from '../preload/api';
+import { singleHttpUrl } from '../renderer/clipboard-link';
 import { drawIconBgra } from './icon';
 import { LocalApiClient } from './local-api-client';
 import { SettingsStore } from './settings';
@@ -327,6 +329,8 @@ function registerIpc(): void {
     const { token: _token, ...info } = api.connection();
     return info;
   });
+  // Read here because the renderer is sandboxed; only a lone URL is passed on.
+  handle(IPC.clipboardLink, async () => (settings.get().clipboardLinks ? singleHttpUrl(await clipboard.readText()) : null));
 
   ipcMain.on(IPC.resize, (event, height: unknown) => {
     if (!fromOurWindow(event) || !win || typeof height !== 'number' || !Number.isFinite(height)) return;

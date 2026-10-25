@@ -52,6 +52,7 @@ export function SettingsView({ onDone, onSaved }: Props) {
   const [datePicker, setDatePicker] = useState(true);
   const [weekStart, setWeekStart] = useState<Settings['weekStart']>('monday');
   const [tabCompletion, setTabCompletion] = useState(true);
+  const [clipboardLinks, setClipboardLinks] = useState(true);
   const [info, setInfo] = useState<ConnectionInfo | null>(null);
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
   const [recordingKey, setRecordingKey] = useState(false);
@@ -69,6 +70,7 @@ export function SettingsView({ onDone, onSaved }: Props) {
       setDatePicker(s.datePicker);
       setWeekStart(s.weekStart);
       setTabCompletion(s.tabCompletion);
+      setClipboardLinks(s.clipboardLinks);
     });
     void bridge.connectionInfo().then(setInfo);
   }, []);
@@ -96,6 +98,7 @@ export function SettingsView({ onDone, onSaved }: Props) {
       datePicker,
       weekStart,
       tabCompletion,
+      clipboardLinks,
     });
     setSettings(result.settings);
     setHotkey(result.settings.hotkey);
@@ -205,6 +208,10 @@ export function SettingsView({ onDone, onSaved }: Props) {
           </select>
         </label>
       </fieldset>
+      <label className="checkbox">
+        <input type="checkbox" checked={clipboardLinks} onChange={(e) => setClipboardLinks(e.target.checked)} />
+        <span>Offer clipboard links (a copied URL can be added with Ctrl+L)</span>
+      </label>
       {message ? (
         <p className={message.error ? 'error-text' : 'ok-text'} role={message.error ? 'alert' : 'status'}>
           {message.text}
