@@ -1,0 +1,547 @@
+import { isDropboxUnauthorizedError, DropboxConflictError } from './dropbox';
+import { traceSection } from './perf-trace';
+import { normalizeCloudUrl, normalizeWebdavUrl } from './sync-helpers';
+import { normalizeRemoteWriteResult } from './sync-run';
+import { SyncRemoteWriteConflict, type SyncBackendIO, type SyncEncryptionPosture, type SyncRunAttachmentHelpers } from './sync-run-ports';
+import {
+    SyncEncryptionRemotePlaintextError,
+    SyncEncryptionRemoteVersionUnavailableError,
+    syncEncryptedArtifactName,
+} from './sync-encryption';
+import type { SyncCryptoKdfParams } from './sync-crypto';
+import type { SyncEncryptionRemoteVersionKind } from './sync-encryption-diagnostics';
+import type { CloudProvider } from './sync-client-helpers';
+import { SYNC_FILE_NAME, type SyncBackend } from './sync-service-utils';
+import type { AppData } from './types';
+import type { SyncRemoteMutationFenceLease } from './sync-remote-fence';
+import {
+    getWebdavDocumentVersionFromError,
+    isWebdavRemoteWriteConflictError,
+    normalizeStrongWebdavEtag,
+    type WebDavDocumentVersion,
+} from './webdav';
+
+/**
+ * ADR 0014 completion — the one implementation of the `SyncBackendIO` port.
+ *
+ * `sync-run-ports.ts` declared the port; desktop and mobile each hand-wrote
+ * the same five-way backend ladder (cloudkit / webdav / cloud+selfhosted /
+ * cloud+dropbox / file) across four methods. This module owns that ladder,
+ * the `dropbox:v1:rev=` fingerprint wire format, the Dropbox conflict
+ * mapping, the Dropbox auth-retry-once policy, and remote-URL normalization.
+ * Platforms inject only their genuine transport truths — see `SyncTransport`.
+ */
+
+/** Ladder-visible sync config for one cycle. Mutated in place by the ladder
+ *  (`syncUrl`, `dropboxRev`) so platform code and the returned `SyncBackendIO`
+ *  observe the same values a request used — preserve that reporting channel's
+ *  semantics exactly; platforms read it for error context and fast-sync scope. */
+export type SyncBackendContext = {
+    backend: SyncBackend;
+    cloudProvider: CloudProvider;
+    webdav?: { url: string } | null;
+    cloud?: { url: string } | null;
+    filePath?: string;
+    dropboxAppKey?: string;
+    /** Remote location of the last request this cycle made; mutated by the ladder. */
+    syncUrl?: string;
+    /** Cached Dropbox content-hash rev; mutated by the ladder after every
+     *  Dropbox read/write/fingerprint call. */
+    dropboxRev: string | null;
+    /** True only when the platform has proven both that sync encryption is exactly
+     * off and that this endpoint is the legacy weak/no-ETag compatibility case. */
+    allowLegacyWebdavPlaintext?: boolean;
+    /** True when the platform has proven sync encryption is exactly off for this cycle
+     * (state 'off', no incomplete transition). Only this posture may degrade to the
+     * legacy plaintext write when a read arrives without a strong ETag. */
+    syncEncryptionOff?: boolean;
+};
+
+/** One remote-write transport result (webdav/cloud PUT response shape). */
+type RemoteWriteResult = Parameters<typeof normalizeRemoteWriteResult>[1];
+type RemoteHeadResult = { exists: boolean; fingerprint: string | null } | null | undefined;
+type DropboxRevResult = { rev: string | null };
+type DropboxDownloadResult = { data: AppData | null; rev: string | null };
+type AttachmentSyncResult = Promise<AppData | boolean | null | undefined>;
+
+/** An ordinary document read: the plaintext body, or the decrypted one. */
+export type WebdavSyncDocumentRead = WebDavDocumentVersion & { state?: 'data'; data: AppData | null };
+
+/** The RAW WebDAV read a transport returns. Transports no longer decide what a
+ *  non-`data` state means — `createSyncBackendIO` owns that (see
+ *  `SyncEncryptionPosture`). Desktop's Tauri path decrypts in Rust and therefore
+ *  never reports a state at all, which reads as `data`. */
+export type WebdavSyncReadResult =
+    | WebdavSyncDocumentRead
+    | (WebDavDocumentVersion & { state: 'encrypted-no-key'; salt: Uint8Array; params: SyncCryptoKdfParams })
+    | (WebDavDocumentVersion & { state: 'remote-plaintext' });
+
+export type FileSyncReadResult = {
+    data: AppData;
+    fingerprint: string;
+    source?: string;
+    needsRepair?: boolean;
+};
+
+/**
+ * Platform transport for one sync cycle's active backend. Every member here
+ * is a deliberate platform truth carried over verbatim from the desktop/mobile
+ * orchestrators (see `sync-run-ports.ts` for the ones ADR 0014 already
+ * codified): desktop forks `isTauriRuntimeEnv()` between `tauriInvoke` and
+ * `fetch` and resolves the WebDAV password from the OS keyring; mobile wraps
+ * WebDAV calls in its rate-limit controller and threads an `AbortSignal`.
+ * Retry wrapping (attempt counts, backoff, which errors are retryable) is
+ * also a platform truth — each method already includes whatever retry policy
+ * that platform runs today. This ladder does not add or remove retries.
+ */
+export type SyncTransport = {
+    acquireWebdavRemoteMutationFence?(): Promise<SyncRemoteMutationFenceLease>;
+    acquireDropboxRemoteMutationFence?(token: string): Promise<SyncRemoteMutationFenceLease>;
+    webdavGet(): Promise<WebdavSyncReadResult>;
+    /** null means create-only (If-None-Match:*); a value is the strong GET ETag (If-Match). */
+    webdavPut(
+        sanitized: AppData,
+        expectedEtag: string | null,
+        assertRemoteMutationFenceHeld?: (minRemainingMs?: number) => Promise<void>,
+    ): Promise<RemoteWriteResult>;
+    /** One-shot compatibility write for plaintext providers without strong ETags.
+     * Core rereads and compares the remote snapshot immediately before calling this. */
+    webdavPutLegacyPlaintext?(
+        sanitized: AppData,
+        assertRemoteMutationFenceHeld?: (minRemainingMs?: number) => Promise<void>,
+    ): Promise<RemoteWriteResult>;
+    webdavHead(): Promise<RemoteHeadResult>;
+    cloudGet(): Promise<AppData | null | undefined>;
+    cloudPut(sanitized: AppData): Promise<RemoteWriteResult>;
+    cloudHead(): Promise<RemoteHeadResult>;
+    fileRead(): Promise<AppData | FileSyncReadResult | null | undefined>;
+    fileWrite(sanitized: AppData, expectedFingerprint?: string): Promise<void>;
+    cloudKitRead(): Promise<AppData | null | undefined>;
+    cloudKitWrite(sanitized: AppData): Promise<void>;
+    /** Resolve a Dropbox access token; `forceRefresh` on the auth-retry pass. */
+    resolveDropboxToken(forceRefresh: boolean): Promise<string>;
+    dropboxDownload(token: string): Promise<DropboxDownloadResult>;
+    dropboxUpload(
+        token: string,
+        sanitized: AppData,
+        expectedRev: string | null,
+        assertRemoteMutationFenceHeld?: (minRemainingMs?: number) => Promise<void>,
+    ): Promise<DropboxRevResult>;
+    dropboxMetadata(token: string): Promise<DropboxRevResult>;
+    syncWebdavAttachments(data: AppData, helpers: SyncRunAttachmentHelpers): AttachmentSyncResult;
+    syncCloudAttachments(data: AppData, helpers: SyncRunAttachmentHelpers): AttachmentSyncResult;
+    syncDropboxAttachments(data: AppData, helpers: SyncRunAttachmentHelpers): AttachmentSyncResult;
+    syncFileAttachments(data: AppData, helpers: SyncRunAttachmentHelpers): AttachmentSyncResult;
+    syncCloudKitAttachments(data: AppData, helpers: SyncRunAttachmentHelpers): AttachmentSyncResult;
+};
+
+const DROPBOX_REV_FINGERPRINT_PREFIX = 'dropbox:v1:rev=';
+const WEBDAV_ETAG_FINGERPRINT_PREFIX = 'webdav:v1:etag=';
+
+/** `dropbox:v1:rev=` cached-fingerprint wire format — one place, not four. */
+export const buildDropboxRevFingerprint = (rev: string): string => `${DROPBOX_REV_FINGERPRINT_PREFIX}${rev}`;
+
+/** The strong ETag inside a `webdav:v1:etag=` fast-check fingerprint, or null.
+ *  `buildHttpRemoteFileFingerprint` also emits a `mtime=/len=` form for servers
+ *  that send no ETag, and copies a weak (`W/"…"`) validator through verbatim;
+ *  neither is a compare-and-swap primitive, so both answer null here. */
+const strongEtagFromWebdavFingerprint = (fingerprint: string): string | null => (
+    fingerprint.startsWith(WEBDAV_ETAG_FINGERPRINT_PREFIX)
+        ? normalizeStrongWebdavEtag(fingerprint.slice(WEBDAV_ETAG_FINGERPRINT_PREFIX.length))
+        : null
+);
+
+const isFileSyncReadResult = (value: AppData | FileSyncReadResult): value is FileSyncReadResult => (
+    typeof value === 'object'
+    && value !== null
+    && 'data' in value
+    && 'fingerprint' in value
+    && typeof value.fingerprint === 'string'
+);
+
+export function createSyncBackendIO(
+    ctx: SyncBackendContext,
+    transport: SyncTransport,
+    posture?: SyncEncryptionPosture,
+): SyncBackendIO {
+    let fileRemoteFingerprint: string | null = null;
+    let fileRemoteNeedsRepair = false;
+    let webdavDocumentVersion: WebDavDocumentVersion | null = null;
+    let webdavDocumentSnapshot: string | null = null;
+    const snapshotWebdavRead = (remote: WebdavSyncDocumentRead): string => JSON.stringify({
+        exists: remote.exists,
+        data: remote.data,
+    });
+
+    /**
+     * The WebDAV read encryption posture — one decision, previously copied into
+     * desktop's native path, desktop's web path, and mobile's transport.
+     *
+     * Order is load-bearing on every refusing branch: emit the `remote-read`
+     * diagnostics line first (a shared log must never show a refusal with no
+     * posture behind it), persist the durable discovery second (it has to
+     * survive a restart), throw last. Nothing on the remote is touched here.
+     */
+    const readWebdavDocument = async (): Promise<WebdavSyncDocumentRead> => {
+        const remote = await transport.webdavGet();
+        const material = posture?.material ?? null;
+        const version: SyncEncryptionRemoteVersionKind = normalizeStrongWebdavEtag(remote.strongEtag)
+            ? 'strong'
+            : remote.strongEtag ? 'weak' : 'none';
+        const logRemoteRead = posture?.logRemoteRead.bind(posture) ?? (() => {});
+
+        if (remote.state === 'remote-plaintext') {
+            logRemoteRead({
+                artifact: SYNC_FILE_NAME,
+                exists: true,
+                kind: 'plaintext',
+                version,
+                decision: 'plaintext-discovered',
+            });
+            await posture?.onRemotePlaintextDiscovered();
+            throw new SyncEncryptionRemotePlaintextError('the WebDAV remote is no longer encrypted');
+        }
+        if (remote.state === 'encrypted-no-key') {
+            logRemoteRead({
+                artifact: syncEncryptedArtifactName(SYNC_FILE_NAME),
+                exists: true,
+                kind: 'encrypted',
+                headerSalt: remote.salt,
+                headerKdf: remote.params,
+                version,
+                foreignSalt: material !== null,
+                decision: version === 'strong' ? 'no-key' : 'version-unavailable',
+            });
+            // The encrypted CAS depends on the strong ETag. Refuse before persisting
+            // anything: a discovery recorded here would block the location on evidence
+            // this cycle could not safely act on.
+            if (version !== 'strong') {
+                throw new SyncEncryptionRemoteVersionUnavailableError('WebDAV encrypted sync document');
+            }
+            // Only a posture port can name this refusal: desktop wraps the Rust-mirrored
+            // sentinel, mobile raises its own class. Spelling a fallback sentinel here
+            // would be a third copy of a string that already lives in two places, so a
+            // transport that can report ciphertext must come with a port.
+            if (!posture) {
+                throw new Error('WebDAV remote is encrypted; createSyncBackendIO needs a SyncEncryptionPosture to read it');
+            }
+            await posture.onRemoteEncryptionDiscovered({ salt: remote.salt, params: remote.params });
+            throw posture.noKeyError();
+        }
+
+        // `syncEncryptionOff` is the proven-plaintext posture for the whole cycle;
+        // `material` is what actually happened to these bytes. They agree except in the
+        // states that hold no usable key (a locked keyring, an unresolved no-key
+        // discovery), and those must fail closed rather than write plaintext. An
+        // unset `syncEncryptionOff` is a caller that models no encryption at all, so
+        // it reads as plaintext and this whole block stays inert for it.
+        const encryptedRead = material !== null || ctx.syncEncryptionOff === false;
+        logRemoteRead({
+            artifact: encryptedRead ? syncEncryptedArtifactName(SYNC_FILE_NAME) : SYNC_FILE_NAME,
+            exists: remote.exists,
+            kind: remote.exists ? (encryptedRead ? 'encrypted' : 'plaintext') : 'absent',
+            headerSalt: material?.salt,
+            headerKdf: material?.params,
+            version,
+            foreignSalt: false,
+            decision: !remote.exists
+                ? 'absent'
+                : encryptedRead
+                    ? (version === 'strong' ? 'decrypt' : 'version-unavailable')
+                    : (version === 'strong' ? 'plaintext' : 'legacy-plaintext'),
+        });
+        if (remote.exists && version !== 'strong') {
+            if (encryptedRead) {
+                throw new SyncEncryptionRemoteVersionUnavailableError('WebDAV encrypted sync document');
+            }
+            if (!ctx.allowLegacyWebdavPlaintext) {
+                // The ladder below degrades this cycle to the bounded legacy write.
+                // Log the validator the server actually sent so the next report says so.
+                posture?.onWeakEtagPlaintextRead?.(remote.strongEtag ?? null);
+            }
+        }
+        if (material && remote.exists && remote.data !== null) {
+            await posture?.onRemoteEncryptionVerified?.(material);
+        }
+        return remote;
+    };
+
+    /** Dropbox token-retry policy: try with the current token; on an
+     *  unauthorized response, force-refresh once and retry once; any other
+     *  error, or a second unauthorized response, propagates. Outer transient
+     *  retry (backoff, attempt counts) is each platform's own, already baked
+     *  into `resolveDropboxToken`/`dropboxDownload`/`dropboxUpload`/`dropboxMetadata`. */
+    const runDropboxWithAuthRetry = async <T>(operation: (token: string) => Promise<T>): Promise<T> => {
+        let forceRefresh = false;
+        let retried = false;
+        while (true) {
+            const token = await transport.resolveDropboxToken(forceRefresh);
+            try {
+                return await operation(token);
+            } catch (error) {
+                if (retried || !isDropboxUnauthorizedError(error)) throw error;
+                retried = true;
+                forceRefresh = true;
+            }
+        }
+    };
+
+    return {
+        acquireRemoteMutationFence: async () => {
+            if (ctx.backend === 'webdav' && ctx.webdav?.url) {
+                // The legacy plaintext compatibility mode exists specifically for
+                // providers that cannot supply strong ETags. The WebDAV fence uses
+                // the same conditional-write capability, so attempting to acquire it
+                // would fail before the bounded legacy reread/write path can run.
+                // Current-version callers still serialize cycles locally; without a
+                // server CAS primitive, cross-device atomicity cannot be guaranteed.
+                if (ctx.allowLegacyWebdavPlaintext) return null;
+                return transport.acquireWebdavRemoteMutationFence?.() ?? null;
+            }
+            if (ctx.backend === 'cloud' && ctx.cloudProvider === 'dropbox') {
+                if (!transport.acquireDropboxRemoteMutationFence) return null;
+                return runDropboxWithAuthRetry((token) => transport.acquireDropboxRemoteMutationFence!(token));
+            }
+            return null;
+        },
+        getSyncUrl: () => ctx.syncUrl,
+        getCachedRemoteFingerprint: () => (
+            ctx.backend === 'cloud' && ctx.cloudProvider === 'dropbox' && ctx.dropboxRev
+                ? buildDropboxRevFingerprint(ctx.dropboxRev)
+                : null
+        ),
+        adoptRemoteFingerprintForWrite: (fingerprint) => {
+            if (ctx.backend === 'webdav') {
+                // The legacy plaintext mode exists for providers with no
+                // conditional-write primitive at all; its write path deliberately
+                // rereads and byte-compares instead, which is the read this path
+                // is skipping. Never adopt there.
+                if (ctx.allowLegacyWebdavPlaintext) return false;
+                const strongEtag = strongEtagFromWebdavFingerprint(fingerprint);
+                if (!strongEtag) return false;
+                webdavDocumentVersion = { exists: true, strongEtag };
+                // No document was read, so there is no snapshot to compare; leaving
+                // it null keeps the legacy reread branch in `writeRemote` unreachable.
+                webdavDocumentSnapshot = null;
+                return true;
+            }
+            if (ctx.backend === 'cloud' && ctx.cloudProvider === 'dropbox') {
+                if (!fingerprint.startsWith(DROPBOX_REV_FINGERPRINT_PREFIX)) return false;
+                const rev = fingerprint.slice(DROPBOX_REV_FINGERPRINT_PREFIX.length);
+                if (!rev) return false;
+                // `dropboxUpload` sends this as the expected rev; a peer write
+                // since it was read fails the upload with a 409.
+                ctx.dropboxRev = rev;
+                return true;
+            }
+            // Self-hosted cloud PUTs are unconditional (the server merges instead),
+            // the file backend guards on a fingerprint only the read produces, and
+            // CloudKit has no fingerprint at all.
+            return false;
+        },
+        readRemote: async () => {
+            if (ctx.backend === 'cloudkit') {
+                return transport.cloudKitRead();
+            }
+            if (ctx.backend === 'webdav') {
+                if (!ctx.webdav?.url) {
+                    throw new Error('WebDAV URL not configured');
+                }
+                ctx.syncUrl = normalizeWebdavUrl(ctx.webdav.url);
+                try {
+                    const remote = await readWebdavDocument();
+                    webdavDocumentVersion = { exists: remote.exists, strongEtag: remote.strongEtag };
+                    webdavDocumentSnapshot = traceSection('sync:readSnapshot', () => snapshotWebdavRead(remote));
+                    // A plaintext endpoint that answered this read without a strong ETag cannot
+                    // support the conditional write the cycle would otherwise demand — whatever
+                    // the capability probe concluded earlier (#1113's observational posture, and
+                    // a server/proxy can drop the validator on one response). With encryption off
+                    // the pre-1.2.5 posture applies: degrade THIS cycle to the bounded legacy
+                    // plaintext write instead of failing it. The legacy write still rereads and
+                    // byte-compares first, and prefers a conditional write when the ETag is back,
+                    // so a transient blip costs nothing and nothing is demoted beyond this cycle.
+                    // Encryption-on cycles never reach here: their read seams fail closed first.
+                    if (
+                        ctx.syncEncryptionOff
+                        && !ctx.allowLegacyWebdavPlaintext
+                        && remote.exists
+                        && !remote.strongEtag
+                    ) {
+                        ctx.allowLegacyWebdavPlaintext = true;
+                    }
+                    return remote.data;
+                } catch (error) {
+                    // Invalid JSON still enters the shared repair path. Preserve the GET
+                    // validator carried by that error so the repair is conditional too.
+                    webdavDocumentVersion = getWebdavDocumentVersionFromError(error);
+                    webdavDocumentSnapshot = null;
+                    throw error;
+                }
+            }
+            if (ctx.backend === 'cloud') {
+                if (ctx.cloudProvider === 'selfhosted') {
+                    if (!ctx.cloud?.url) {
+                        throw new Error('Self-hosted URL not configured');
+                    }
+                    ctx.syncUrl = normalizeCloudUrl(ctx.cloud.url);
+                    return transport.cloudGet();
+                }
+                if (!ctx.dropboxAppKey) {
+                    throw new Error('Dropbox app key is not configured');
+                }
+                ctx.syncUrl = 'dropbox:///Apps/Mindwtr/data.json';
+                const remote = await runDropboxWithAuthRetry((token) => transport.dropboxDownload(token));
+                ctx.dropboxRev = remote.rev;
+                return remote.data;
+            }
+            const remote = await transport.fileRead();
+            if (remote && isFileSyncReadResult(remote)) {
+                fileRemoteFingerprint = remote.fingerprint;
+                fileRemoteNeedsRepair = remote.needsRepair === true;
+                return remote.data;
+            }
+            fileRemoteFingerprint = null;
+            fileRemoteNeedsRepair = false;
+            return remote;
+        },
+        writeRemote: async (sanitized, assertRemoteMutationFenceHeld) => {
+            if (ctx.backend === 'cloudkit') {
+                await transport.cloudKitWrite(sanitized);
+                return;
+            }
+            if (ctx.backend === 'webdav') {
+                if (ctx.webdav?.url) {
+                    ctx.syncUrl = normalizeWebdavUrl(ctx.webdav.url);
+                }
+                if (!webdavDocumentVersion) {
+                    throw new Error('WebDAV document version is unavailable; refusing an unconditional write');
+                }
+                if (
+                    webdavDocumentVersion.exists
+                    && !webdavDocumentVersion.strongEtag
+                    && !ctx.allowLegacyWebdavPlaintext
+                ) {
+                    throw new Error('WebDAV server did not provide a safe strong ETag for the existing sync document; refusing to overwrite it');
+                }
+                try {
+                    let expectedEtag = webdavDocumentVersion.exists ? webdavDocumentVersion.strongEtag : null;
+                    if (ctx.allowLegacyWebdavPlaintext && !expectedEtag) {
+                        if (!webdavDocumentSnapshot || !transport.webdavPutLegacyPlaintext) {
+                            throw new Error('WebDAV legacy plaintext write is unavailable; refusing an unconditional write');
+                        }
+                        // A legacy provider has no atomic compare-and-swap primitive. Bound
+                        // the unavoidable race window with a fresh semantic snapshot
+                        // immediately before one non-retried plaintext PUT. Current-version
+                        // cycles remain locally serialized, but peer races are unavoidable.
+                        await assertRemoteMutationFenceHeld?.();
+                        const confirmed = await readWebdavDocument();
+                        if (snapshotWebdavRead(confirmed) !== webdavDocumentSnapshot) {
+                            throw new SyncRemoteWriteConflict();
+                        }
+                        webdavDocumentVersion = {
+                            exists: confirmed.exists,
+                            strongEtag: confirmed.strongEtag,
+                        };
+                        expectedEtag = confirmed.exists ? confirmed.strongEtag : null;
+                        if (!expectedEtag) {
+                            const result = assertRemoteMutationFenceHeld
+                                ? await transport.webdavPutLegacyPlaintext(
+                                    sanitized,
+                                    assertRemoteMutationFenceHeld,
+                                )
+                                : await transport.webdavPutLegacyPlaintext(sanitized);
+                            return normalizeRemoteWriteResult('webdav', result);
+                        }
+                    }
+                    const result = assertRemoteMutationFenceHeld
+                        ? await transport.webdavPut(sanitized, expectedEtag, assertRemoteMutationFenceHeld)
+                        : await transport.webdavPut(sanitized, expectedEtag);
+                    return normalizeRemoteWriteResult('webdav', result);
+                } catch (error) {
+                    if (isWebdavRemoteWriteConflictError(error)) {
+                        // The native error message carries the rejecting HTTP
+                        // status ("… before replacement (412)"); keep it so the
+                        // requeue log can show why the server refused the write.
+                        throw new SyncRemoteWriteConflict(
+                            error instanceof Error ? error.message : String(error),
+                        );
+                    }
+                    throw error;
+                }
+            }
+            if (ctx.backend === 'cloud') {
+                if (ctx.cloudProvider === 'selfhosted') {
+                    if (ctx.cloud?.url) {
+                        ctx.syncUrl = normalizeCloudUrl(ctx.cloud.url);
+                    }
+                    const result = await transport.cloudPut(sanitized);
+                    return normalizeRemoteWriteResult('cloud', result);
+                }
+                if (!ctx.dropboxAppKey) {
+                    throw new Error('Dropbox app key is not configured');
+                }
+                try {
+                    const uploaded = await runDropboxWithAuthRetry((token) => (
+                        assertRemoteMutationFenceHeld
+                            ? transport.dropboxUpload(token, sanitized, ctx.dropboxRev, assertRemoteMutationFenceHeld)
+                            : transport.dropboxUpload(token, sanitized, ctx.dropboxRev)
+                    ));
+                    ctx.dropboxRev = uploaded.rev;
+                    return;
+                } catch (error) {
+                    if (error instanceof DropboxConflictError) {
+                        throw new SyncRemoteWriteConflict();
+                    }
+                    throw error;
+                }
+            }
+            if (fileRemoteFingerprint) {
+                await transport.fileWrite(sanitized, fileRemoteFingerprint);
+            } else {
+                await transport.fileWrite(sanitized);
+            }
+            fileRemoteNeedsRepair = false;
+        },
+        requiresRemoteRepair: () => ctx.backend === 'file' && fileRemoteNeedsRepair,
+        readRemoteFingerprint: async () => {
+            if (ctx.backend === 'webdav') {
+                if (!ctx.webdav?.url) return null;
+                ctx.syncUrl = normalizeWebdavUrl(ctx.webdav.url);
+                const metadata = await transport.webdavHead();
+                if (!metadata?.exists) return null;
+                return metadata.fingerprint;
+            }
+            if (ctx.backend === 'cloud' && ctx.cloudProvider === 'selfhosted') {
+                if (!ctx.cloud?.url) return null;
+                ctx.syncUrl = normalizeCloudUrl(ctx.cloud.url);
+                const metadata = await transport.cloudHead();
+                if (!metadata?.exists) return null;
+                return metadata.fingerprint;
+            }
+            if (ctx.backend === 'cloud' && ctx.cloudProvider === 'dropbox') {
+                const metadata = await runDropboxWithAuthRetry((token) => transport.dropboxMetadata(token));
+                ctx.dropboxRev = metadata.rev;
+                return metadata.rev ? buildDropboxRevFingerprint(metadata.rev) : null;
+            }
+            return null;
+        },
+        syncAttachments: async (data, helpers) => {
+            if (ctx.backend === 'webdav' && ctx.webdav?.url) {
+                return transport.syncWebdavAttachments(data, helpers);
+            }
+            if (ctx.backend === 'cloudkit') {
+                return transport.syncCloudKitAttachments(data, helpers);
+            }
+            if (ctx.backend === 'file' && ctx.filePath) {
+                return transport.syncFileAttachments(data, helpers);
+            }
+            if (ctx.backend === 'cloud' && ctx.cloudProvider === 'selfhosted' && ctx.cloud?.url) {
+                return transport.syncCloudAttachments(data, helpers);
+            }
+            if (ctx.backend === 'cloud' && ctx.cloudProvider === 'dropbox') {
+                return transport.syncDropboxAttachments(data, helpers);
+            }
+            return null;
+        },
+    };
+}
