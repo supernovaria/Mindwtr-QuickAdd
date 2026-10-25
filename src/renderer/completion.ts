@@ -1,5 +1,6 @@
-// Inline autocomplete for marker tokens (`!Area`, `+Project`): finds the token
-// being typed at the caret, ranks matching names, and builds the completed text.
+// Inline autocomplete for marker tokens (`!Area`, `+Project`, `@context`, `#tag`):
+// finds the token being typed at the caret, ranks matching names, and builds the
+// completed text.
 // Also finds an empty date command (`due:`, `/start:`, ...) at the caret, where
 // the date picker opens.
 
@@ -13,10 +14,14 @@ export interface ActiveToken {
   end: number;
 }
 
+/** Markers whose names can nest with `/`, like Mindwtr's hierarchical contexts and tags. */
+const HIERARCHICAL_MARKERS = new Set(['@', '#']);
+
 /**
  * The marker token the caret is in, once at least `minChars` characters follow
  * the marker. A typed query must start with a letter, so `!1`..`!4` (priority)
- * never open suggestions.
+ * never open suggestions. Contexts and tags may also start with a digit and
+ * nest with `/` (`@work/calls`), as Mindwtr's hierarchical tokens do.
  */
 export function activeToken(text: string, caret: number, marker: string, minChars = 1): ActiveToken | null {
   const before = text.slice(0, caret);
@@ -25,7 +30,8 @@ export function activeToken(text: string, caret: number, marker: string, minChar
   if (start > 0 && !/\s/.test(before[start - 1])) return null;
   const query = before.slice(start + marker.length);
   if (query.length < minChars) return null;
-  if (query && !/^\p{L}[^\s"'!@#+%/]*$/u.test(query)) return null;
+  const pattern = HIERARCHICAL_MARKERS.has(marker) ? /^[\p{L}\p{N}][^\s"'!@#+%]*$/u : /^\p{L}[^\s"'!@#+%/]*$/u;
+  if (query && !pattern.test(query)) return null;
   const rest = text.slice(caret).match(/^[^\s]*/)?.[0] ?? '';
   return { marker, query, start, end: caret + rest.length };
 }
@@ -52,9 +58,14 @@ export function rankSuggestions(names: readonly string[], query: string, max: nu
   return (max === null ? scored : scored.slice(0, max)).map((item) => item.name);
 }
 
-/** The token as Mindwtr's parser reads it: quoted when the name has anything but word characters. */
+/**
+ * The token as Mindwtr's parser reads it: quoted when the name has anything but
+ * word characters. A nested context or tag (`@work/calls`) stays bare: core
+ * reads it whole because it is one of the known tokens it was suggested from.
+ */
 export function formatToken(marker: string, name: string): string {
-  return /^[\p{L}\p{N}_-]+$/u.test(name) ? `${marker}${name}` : `${marker}"${name.replace(/(["\\])/g, '\\$1')}"`;
+  const bare = HIERARCHICAL_MARKERS.has(marker) ? /^[\p{L}\p{N}_-]+(?:\/[\p{L}\p{N}_-]+)*$/u : /^[\p{L}\p{N}_-]+$/u;
+  return bare.test(name) ?`${marker}${name}` : `${marker}"${name.replace(/(["\\])/g, '\\$1')}"`;
 }
 
 /** Replaces the active token with the chosen name and puts the caret after the following space. */

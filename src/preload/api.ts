@@ -68,6 +68,10 @@ export interface Settings {
   areaSuggest: SuggestSettings;
   /** `+Project` suggestions. */
   projectSuggest: SuggestSettings;
+  /** `@context` suggestions. */
+  contextSuggest: SuggestSettings;
+  /** `#tag` suggestions. */
+  tagSuggest: SuggestSettings;
   /** Calendar after `due:`, `start:` and `review:`. */
   datePicker: boolean;
   weekStart: 'monday' | 'sunday';

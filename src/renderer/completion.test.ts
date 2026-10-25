@@ -159,3 +159,55 @@ describe('cycleDateCommand', () => {
     expect(step('Trip /start:').text).toBe('Trip /due:');
   });
 });
+
+describe('@context and #tag', () => {
+  const CONTEXTS = ['@phone', '@at home', '@work', '@work/calls', '@2nd-floor'];
+  const TAGS = ['#idea', '#idea/app', '#café'];
+  const parse = (input: string) => parseCapture(input, { areas: [], projects: [], knownContexts: CONTEXTS, knownTags: TAGS });
+
+  test('open like ! and +, including digits and nested names', () => {
+    expect(activeToken('Call @ph', 8, '@')).toEqual({ marker: '@', query: 'ph', start: 5, end: 8 });
+    expect(activeToken('x #idea/a', 9, '#')?.query).toBe('idea/a');
+    expect(activeToken('x @2n', 5, '@')?.query).toBe('2n');
+    expect(activeToken('Mail bob@ex', 11, '@')).toBeNull();
+    expect(activeToken('x @', 3, '@')).toBeNull();
+    expect(activeToken('x @', 3, '@', 0)?.query).toBe('');
+  });
+  test('/ still closes ! and + queries', () => {
+    expect(activeToken('a !home/x', 9, '!')).toBeNull();
+    expect(activeToken('a +web/x', 8, '+')).toBeNull();
+  });
+  test('nested names rank on each part', () => {
+    expect(rankSuggestions(['work', 'work/calls', 'phone'], 'work/c')).toEqual(['work/calls']);
+    expect(rankSuggestions(['work', 'work/calls', 'phone'], 'cal')).toEqual(['work/calls']);
+  });
+  test('formats: bare, nested bare, quoted', () => {
+    expect(formatToken('@', 'phone')).toBe('@phone');
+    expect(formatToken('@', 'work/calls')).toBe('@work/calls');
+    expect(formatToken('#', 'idea/app')).toBe('#idea/app');
+    expect(formatToken('@', 'at home')).toBe('@"at home"');
+    expect(formatToken('!', 'a/b')).toBe('!"a/b"');
+  });
+  test('Mindwtr parses every inserted context and tag', () => {
+    for (const token of CONTEXTS) {
+      const text = `Call bob ${token[0]}${token.slice(1, 3)}`;
+      const result = applyCompletion(text, activeToken(text, text.length, '@')!, token.slice(1));
+      const parsed = parse(`${result.text}due:2026-11-03`);
+      expect(parsed.props.contexts, token).toEqual([token]);
+      expect(parsed.title).toBe('Call bob');
+      expect(parsed.props.dueDate).toBe('2026-11-03');
+    }
+    for (const token of TAGS) {
+      const result = applyCompletion('Plan #i', activeToken('Plan #i', 7, '#')!, token.slice(1));
+      const parsed = parse(`${result.text}more words`);
+      expect(parsed.props.tags, token).toEqual([token]);
+      expect(parsed.title).toBe('Plan more words');
+    }
+  });
+  test('the nested name is not cut at the slash', () => {
+    const parsed = parse('Ring @work/calls @phone #idea/app');
+    expect(parsed.props.contexts).toEqual(['@work/calls', '@phone']);
+    expect(parsed.props.tags).toEqual(['#idea/app']);
+    expect(parsed.title).toBe('Ring');
+  });
+});

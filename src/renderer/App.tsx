@@ -16,6 +16,7 @@ import { PreviewChips } from './components/PreviewChips';
 import { SettingsView } from './components/SettingsView';
 import { QUICK_ADD_EXAMPLE, SyntaxHelpContent } from './components/SyntaxHelp';
 import { TitleBar, type CaptureMode, type MenuAction } from './components/TitleBar';
+import { historyStep, loadHistory, rememberEntry, saveHistory } from './history';
 
 const ADDED_FLASH_MS = 700;
 const BODY_MARGIN = 8; // transparent gutter around the card (see styles.css)
@@ -39,7 +40,10 @@ export function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [recording, setRecording] = useState(false);
   const [ui, setUi] = useState<InterfaceMode>('full');
-  const [typing, setTyping] = useState<Pick<Settings, 'areaSuggest' | 'projectSuggest' | 'datePicker' | 'weekStart' | 'tabCompletion'> | null>(null);
+  const [history, setHistory] = useState(loadHistory);
+  /** Index of the history entry the field holds, until the user edits it. */
+  const [recalled, setRecalled] = useState<number | null>(null);
+  const [typing, setTyping] = useState<Pick<Settings, 'areaSuggest' | 'projectSuggest' | 'contextSuggest' | 'tagSuggest' | 'datePicker' | 'weekStart' | 'tabCompletion'> | null>(null);
 
   const cardRef = useRef<HTMLDivElement>(null);
   const fieldRef = useRef<HighlightedFieldHandle>(null);
@@ -125,8 +129,12 @@ export function App() {
       const open = live(projects).filter((p) => p.status !== 'archived');
       sources.push({ marker: '+', names: open.map((p) => p.title), ...typing.projectSuggest });
     }
+    // Known contexts and tags come with their marker (`@phone`); list the bare names.
+    const bare = (tokens: string[], marker: string) => [...new Set(tokens.map((t) => (t.startsWith(marker) ? t.slice(1) : t)).filter(Boolean))];
+    if (typing.contextSuggest.enabled) sources.push({ marker: '@', names: bare(known.contexts, '@'), ...typing.contextSuggest });
+    if (typing.tagSuggest.enabled) sources.push({ marker: '#', names: bare(known.tags, '#'), ...typing.tagSuggest });
     return sources;
-  }, [typing, areas, projects]);
+  }, [typing, areas, projects, known]);
   const datePicker = useMemo(
     () => (typing?.datePicker ? { weekStart: typing.weekStart } : undefined),
     [typing?.datePicker, typing?.weekStart],
@@ -186,6 +194,10 @@ export function App() {
       return;
     }
     setApiError(null);
+    const nextHistory = rememberEntry(history, text);
+    setHistory(nextHistory);
+    saveHistory(nextHistory);
+    setRecalled(null);
     const first = outcomes[0];
     const createdId = first && 'task' in first ? first.task?.id : undefined;
     if (edit && createdId) {
@@ -195,7 +207,7 @@ export function App() {
       return;
     }
     flashAddedThenHide('Added', () => setText(''));
-  }, [submitting, parsed, text, send, flashAddedThenHide, refresh]);
+  }, [submitting, parsed, text, history, send, flashAddedThenHide, refresh]);
 
   const saveBulk = useCallback(async () => {
     if (submitting) return;
@@ -508,12 +520,14 @@ export function App() {
             value={text}
             onChange={(v) => {
               setText(v);
+              setRecalled(null);
               if (status?.kind === 'error') setStatus(null);
             }}
             highlights={parsed.highlights}
             completions={completions}
             datePicker={datePicker}
             tabComplete={typing?.tabCompletion ?? false}
+            quiet={recalled !== null}
             maxRows={5}
             ariaLabel="Task"
             placeholder="Add Task"
@@ -524,6 +538,13 @@ export function App() {
               } else if (e.key === 'Enter' && !e.shiftKey && !e.altKey) {
                 e.preventDefault();
                 void saveText();
+              } else if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey) {
+                // Shell-style history; the open popups have already taken their arrows.
+                const step = historyStep(history, recalled, text, e.key === 'ArrowUp' ? 'older' : 'newer');
+                if (!step) return;
+                e.preventDefault();
+                setText(step.text);
+                setRecalled(step.index);
               }
             }}
           >

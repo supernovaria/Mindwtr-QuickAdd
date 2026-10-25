@@ -49,6 +49,8 @@ export function SettingsView({ onDone, onSaved }: Props) {
   const [interfaceMode, setInterfaceMode] = useState<InterfaceMode>('full');
   const [areaSuggest, setAreaSuggest] = useState<SuggestDraft>(toDraft(DEFAULT_SUGGEST));
   const [projectSuggest, setProjectSuggest] = useState<SuggestDraft>(toDraft(DEFAULT_SUGGEST));
+  const [contextSuggest, setContextSuggest] = useState<SuggestDraft>(toDraft(DEFAULT_SUGGEST));
+  const [tagSuggest, setTagSuggest] = useState<SuggestDraft>(toDraft(DEFAULT_SUGGEST));
   const [datePicker, setDatePicker] = useState(true);
   const [weekStart, setWeekStart] = useState<Settings['weekStart']>('monday');
   const [tabCompletion, setTabCompletion] = useState(true);
@@ -66,6 +68,8 @@ export function SettingsView({ onDone, onSaved }: Props) {
       setInterfaceMode(s.interfaceMode);
       setAreaSuggest(toDraft(s.areaSuggest));
       setProjectSuggest(toDraft(s.projectSuggest));
+      setContextSuggest(toDraft(s.contextSuggest));
+      setTagSuggest(toDraft(s.tagSuggest));
       setDatePicker(s.datePicker);
       setWeekStart(s.weekStart);
       setTabCompletion(s.tabCompletion);
@@ -81,7 +85,9 @@ export function SettingsView({ onDone, onSaved }: Props) {
     }
     const area = fromDraft(areaSuggest);
     const project = fromDraft(projectSuggest);
-    if (!area || !project) {
+    const context = fromDraft(contextSuggest);
+    const tag = fromDraft(tagSuggest);
+    if (!area || !project || !context || !tag) {
       setMessage({ text: 'Suggestion counts must be whole numbers (characters 0 or more, entries 1 or more, or empty for all).', error: true });
       return;
     }
@@ -93,6 +99,8 @@ export function SettingsView({ onDone, onSaved }: Props) {
       interfaceMode,
       areaSuggest: area,
       projectSuggest: project,
+      contextSuggest: context,
+      tagSuggest: tag,
       datePicker,
       weekStart,
       tabCompletion,
@@ -189,6 +197,8 @@ export function SettingsView({ onDone, onSaved }: Props) {
         <legend className="field-label">While typing</legend>
         <SuggestRow label="! Area suggestions" value={areaSuggest} onChange={setAreaSuggest} />
         <SuggestRow label="+ Project suggestions" value={projectSuggest} onChange={setProjectSuggest} />
+        <SuggestRow label="@ Context suggestions" value={contextSuggest} onChange={setContextSuggest} />
+        <SuggestRow label="# Tag suggestions" value={tagSuggest} onChange={setTagSuggest} />
         <label className="checkbox">
           <input type="checkbox" checked={datePicker} onChange={(e) => setDatePicker(e.target.checked)} />
           <span>Calendar after due:, start: and review:</span>

@@ -43,6 +43,8 @@ export function createMockBridge(): QuickAddBridge {
     interfaceMode: 'full',
     areaSuggest: { enabled: true, minChars: 1, maxItems: 5 },
     projectSuggest: { enabled: true, minChars: 1, maxItems: 5 },
+    contextSuggest: { enabled: true, minChars: 1, maxItems: 5 },
+    tagSuggest: { enabled: true, minChars: 1, maxItems: 5 },
     datePicker: true,
     weekStart: 'monday',
     tabCompletion: true,
@@ -54,7 +56,7 @@ export function createMockBridge(): QuickAddBridge {
     isElectron: false,
     listAreas: () => ok(AREAS),
     listProjects: () => ok([...PROJECTS]),
-    knownTokens: () => ok({ contexts: ['@phone', '@computer', '@errands'], tags: ['#urgent', '#idea'] }),
+    knownTokens: () => ok({ contexts: ['@phone', '@computer', '@errands', '@work/calls'], tags: ['#urgent', '#idea', '#idea/app'] }),
     async createTasks(items) {
       console.log('[mock] POST /tasks', items);
       await new Promise((resolve) => setTimeout(resolve, 150));

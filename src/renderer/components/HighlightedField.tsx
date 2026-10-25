@@ -38,6 +38,8 @@ interface Props {
   datePicker?: { weekStart: WeekStart };
   /** Tab completes commands (`d` → `due:`); pressing it again cycles. */
   tabComplete?: boolean;
+  /** Keeps the popups closed, e.g. while the text is a recalled history entry. */
+  quiet?: boolean;
 }
 
 export interface HighlightedFieldHandle {
@@ -45,7 +47,7 @@ export interface HighlightedFieldHandle {
 }
 
 export const HighlightedField = forwardRef<HighlightedFieldHandle, Props>(function HighlightedField(
-  { value, onChange, highlights, onKeyDown, placeholder, maxRows = 6, minRows = 1, className, ariaLabel, disabled, children, completions, datePicker, tabComplete },
+  { value, onChange, highlights, onKeyDown, placeholder, maxRows = 6, minRows = 1, className, ariaLabel, disabled, children, completions, datePicker, tabComplete, quiet },
   ref,
 ) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -95,8 +97,8 @@ export const HighlightedField = forwardRef<HighlightedFieldHandle, Props>(functi
   }, [dateCommand, value, caret, completions]);
 
   const popupKey = dateCommand ? `date:${dateCommand.start}` : suggestion ? `list:${suggestion.token.start}` : null;
-  const pickerOpen = dateCommand !== null && dismissed !== popupKey;
-  const listOpen = suggestion !== null && dismissed !== popupKey;
+  const pickerOpen = !quiet && dateCommand !== null && dismissed !== popupKey;
+  const listOpen = !quiet && suggestion !== null && dismissed !== popupKey;
   const selected = suggestion ? Math.min(activeIndex, suggestion.items.length - 1) : 0;
 
   useEffect(() => {
