@@ -82,6 +82,8 @@ export interface ActiveDateCommand {
   /** Where the command word starts (its slash, if typed). */
   start: number;
   slash: boolean;
+  /** End of a value already typed after the colon, which a pick replaces (see date-value.ts). */
+  end?: number;
 }
 
 /** A `start:`/`due:`/`review:` command (slash optional) with nothing typed after it yet. */
@@ -93,9 +95,9 @@ export function activeDateCommand(text: string, caret: number): ActiveDateComman
   return { command: match[2].toLowerCase() as DateCommand, at: caret, start: caret - word.length, slash: match[1] === '/' };
 }
 
-/** Inserts the picked date (YYYY-MM-DD) at the command and moves the caret past a space. */
+/** Inserts the picked date (YYYY-MM-DD) at the command, or over its typed value, and moves the caret past a space. */
 export function applyDate(text: string, command: ActiveDateCommand, isoDate: string): { text: string; caret: number } {
-  return replaceRange(text, command.at, command.at, isoDate);
+  return replaceRange(text, command.at, command.end ?? command.at, isoDate);
 }
 
 const NEXT_DATE_COMMAND: Record<DateCommand, DateCommand> = { start: 'due', due: 'review', review: 'start' };
@@ -109,7 +111,7 @@ export function cycleDateCommand(text: string, command: ActiveDateCommand): { te
 /** Replaces the command with `start:<first> due:<last>` (keeping a typed slash). */
 export function applyDateRange(text: string, command: ActiveDateCommand, startIso: string, dueIso: string): { text: string; caret: number } {
   const slash = command.slash ? '/' : '';
-  return replaceRange(text, command.start, command.at, `${slash}start:${startIso} ${slash}due:${dueIso}`);
+  return replaceRange(text, command.start, command.end ?? command.at, `${slash}start:${startIso} ${slash}due:${dueIso}`);
 }
 
 // ---- Tab completion of commands, shell style ------------------------------------

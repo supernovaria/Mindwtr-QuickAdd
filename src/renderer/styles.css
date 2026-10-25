@@ -439,3 +439,26 @@ button:disabled { cursor: not-allowed; }
 .cycle-hint { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-top: 4px; padding: 0 2px; font-size: 12px; color: var(--muted-foreground); }
 .cycle-key { padding: 0 5px; border: 1px solid var(--border); border-radius: 4px; font-size: 11px; }
 .cycle-option.current { color: var(--primary); font-weight: 600; }
+
+/* ---- calendar following a typed date (due:fri) ---- */
+/* The value no longer resolves: the last date it did stays, dimmed. */
+.datepicker.tentative .datepicker-grid button.selected { opacity: 0.45; }
+
+/* ---- clipboard link offer (under the input) ---- */
+.clip-offer {
+  display: block;
+  max-width: 100%;
+  margin: 2px 0 0;
+  padding: 1px 2px;
+  border: 0;
+  background: transparent;
+  font-size: 12px;
+  color: var(--muted-foreground);
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.clip-offer:hover { color: var(--foreground); }
+.clip-offer-label { color: var(--primary); }

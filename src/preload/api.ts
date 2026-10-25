@@ -77,6 +77,8 @@ export interface Settings {
   weekStart: 'monday' | 'sunday';
   /** Tab completes commands (`d` → `due:`) and cycles on repeat. */
   tabCompletion: boolean;
+  /** Offer a URL on the clipboard as a link when the window opens. */
+  clipboardLinks: boolean;
 }
 
 export interface ConnectionInfo {
@@ -131,6 +133,8 @@ export interface QuickAddBridge {
   getSettings(): Promise<Settings>;
   setSettings(patch: Partial<Settings>): Promise<SetSettingsResult>;
   connectionInfo(): Promise<ConnectionInfo>;
+  /** The clipboard's text if it is a single http(s) URL and clipboardLinks is on; else null. */
+  clipboardLink(): Promise<string | null>;
   /** Fired each time the window is shown. Returns an unsubscribe function. */
   onShow(callback: (event: ShowEvent) => void): () => void;
 }
@@ -149,5 +153,6 @@ export const IPC = {
   setSettings: 'qa:set-settings',
   connectionInfo: 'qa:connection-info',
   openTask: 'qa:open-task',
+  clipboardLink: 'qa:clipboard-link',
   shown: 'qa:shown',
 } as const;

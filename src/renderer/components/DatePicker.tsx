@@ -14,6 +14,10 @@ interface Props {
   weekStart: WeekStart;
   /** Ranges only make sense for start/due. */
   allowRange: boolean;
+  /** The selection is the last date a typed value resolved to, not what it says now (dimmed). */
+  tentative?: boolean;
+  /** Over a typed value only Tab picks (Space and Enter keep their usual meaning). */
+  tabOnly?: boolean;
   onPick: (date: Date) => void;
   onPickRange: (from: Date, to: Date) => void;
   /** Switches the command start → due → review. */
@@ -26,7 +30,7 @@ const COMMAND_LABEL = { start: 'Start', due: 'Due', review: 'Review' } as const;
 
 const ordered = (a: Date, b: Date): [Date, Date] => (a <= b ? [a, b] : [b, a]);
 
-export function DatePicker({ command, selected, anchor, today, weekStart, allowRange, onPick, onPickRange, onCycleCommand, onNavigate }: Props) {
+export function DatePicker({ command, selected, anchor, today, weekStart, allowRange, tentative, tabOnly, onPick, onPickRange, onCycleCommand, onNavigate }: Props) {
   const [drag, setDrag] = useState<{ from: Date; to: Date } | null>(null);
 
   // A drag released outside the calendar is cancelled.
@@ -55,7 +59,7 @@ export function DatePicker({ command, selected, anchor, today, weekStart, allowR
   const month = shown.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
 
   return (
-    <div className="datepicker" role="group" aria-label={`${COMMAND_LABEL[command]} date`}>
+    <div className={tentative ? 'datepicker tentative' : 'datepicker'} role="group" aria-label={`${COMMAND_LABEL[command]} date`}>
       <div className="datepicker-head">
         <div className="datepicker-nav">
           <button
@@ -149,7 +153,7 @@ export function DatePicker({ command, selected, anchor, today, weekStart, allowR
       </table>
       <div className="suggest-hint">
         Arrows move · Ctrl+←→ month · Ctrl+↑↓ top/bottom
-        {allowRange ? ' · Shift or drag: start–due range' : ''} · Tab or Space picks
+        {allowRange ? ' · Shift or drag: start–due range' : ''} · {tabOnly ? 'Tab puts it in' : 'Tab or Space picks'}
       </div>
     </div>
   );
