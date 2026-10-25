@@ -8,6 +8,26 @@ An unofficial companion, not affiliated with the Mindwtr project. AGPL-3.0, like
 holds Mindwtr's own `packages/core` (and reference copies of its quick-add components) at v1.3.6, so
 input is parsed exactly as Mindwtr parses it. See `SPEC.md` for the original design contract.
 
+## Screenshots
+
+Each shot is split diagonally between light and dark; QuickAdd follows the Windows theme.
+
+**Capture with the calendar**: highlighted tokens, parsed-field chips, and the date side panel (distance, quick picks, what is already due).
+
+<img alt="Capture window with calendar and date side panel" src="docs/screenshots/capture-calendar.png" width="640">
+
+**Suggestions** for `+Project`, `@context` and `#tag`, plus `tmrw` parsed as a due date.
+
+<img alt="Tag suggestions list while typing" src="docs/screenshots/suggestions.png" width="640">
+
+**Bulk add**: one task per line, each parsed and previewed before saving.
+
+<img alt="Bulk add view" src="docs/screenshots/bulk-add.png" width="640">
+
+**Settings**: shortcut, Local API override, interface mode, suggestion thresholds, calendar panel parts, tab completion, week start, clipboard links.
+
+<img alt="Settings view" src="docs/screenshots/settings.png" width="640">
+
 ## 1. Turn on Mindwtr's Local API
 
 QuickAdd talks to Mindwtr over `http://127.0.0.1:<port>` with a bearer token. This is off by default.
