@@ -330,6 +330,7 @@ button:disabled { cursor: not-allowed; }
   font-size: 12px;
   line-height: 17px;
 }
+.banner-actions { display: flex; gap: 8px; flex-shrink: 0; white-space: nowrap; }
 .error-text { margin: 0; color: var(--destructive); font-size: 12px; }
 .ok-text { margin: 0; color: var(--success); font-size: 13px; font-weight: 500; }
 
