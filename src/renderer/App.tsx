@@ -18,6 +18,7 @@ import { SettingsView } from './components/SettingsView';
 import { QUICK_ADD_EXAMPLE, SyntaxHelpContent } from './components/SyntaxHelp';
 import { TitleBar, type CaptureMode, type MenuAction } from './components/TitleBar';
 import { historyStep, loadHistory, rememberEntry, saveHistory } from './history';
+import { isRetryable, retryDelay } from './retry';
 
 const ADDED_FLASH_MS = 700;
 const BODY_MARGIN = 8; // transparent gutter around the card (see styles.css)
@@ -54,6 +55,8 @@ export function App() {
   const audioUnsupported = useMemo(() => audioUnsupportedReason(), []);
 
   // ---- data from Mindwtr -------------------------------------------------
+  /** Bumped by every refresh, so a repeat of the same error still schedules the next retry. */
+  const [checks, setChecks] = useState(0);
   const refresh = useCallback(async () => {
     const [a, p, k] = await Promise.all([bridge.listAreas(), bridge.listProjects(), bridge.knownTokens()]);
     if (a.ok) setAreas(a.data);
@@ -61,7 +64,38 @@ export function App() {
     if (k.ok) setKnown(k.data);
     const failure = [a, p, k].find((r) => !r.ok);
     setApiError(failure && !failure.ok ? failure.error : null);
+    setChecks((n) => n + 1);
   }, []);
+
+  // While Mindwtr can't be reached, reconnect on an escalating schedule (see retry.ts).
+  const retryAttempt = useRef(0);
+  const [retryAt, setRetryAt] = useState<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!apiError || !isRetryable(apiError.code)) {
+      retryAttempt.current = 0;
+      setRetryAt(null);
+      return;
+    }
+    const delay = retryDelay(retryAttempt.current++);
+    setRetryAt(Date.now() + delay);
+    setNow(Date.now());
+    const timer = window.setTimeout(() => void refresh(), delay);
+    return () => window.clearTimeout(timer);
+  }, [apiError, checks, refresh]);
+
+  // Ticks the "Retrying in Ns" countdown.
+  useEffect(() => {
+    if (retryAt === null) return;
+    const tick = window.setInterval(() => setNow(Date.now()), 250);
+    return () => window.clearInterval(tick);
+  }, [retryAt]);
+
+  const retryNow = () => {
+    retryAttempt.current = 0;
+    void refresh();
+  };
 
   useEffect(() => {
     void refresh();
@@ -375,9 +409,14 @@ export function App() {
       <div className="banner" role="alert">
         <span>{status?.kind === 'error' ? status.text : apiError?.message}</span>
         {apiError ? (
-          <button type="button" className="link-button" onClick={() => void refresh()}>
-            Retry
-          </button>
+          <span className="banner-actions">
+            {retryAt !== null ? (
+              <span className="muted">Retrying in {Math.max(1, Math.ceil((retryAt - now) / 1000))}s</span>
+            ) : null}
+            <button type="button" className="link-button" onClick={retryNow}>
+              {retryAt !== null ? 'Retry now' : 'Retry'}
+            </button>
+          </span>
         ) : null}
       </div>
     ) : null;
