@@ -19,6 +19,8 @@ export interface CompletionSource {
   minChars: number;
   /** Most entries shown; null = all. */
   maxItems: number | null;
+  /** Names to list first, given the rest of the caret's line (the token being typed cut out). */
+  preferred?: (line: string) => ReadonlySet<string>;
 }
 
 interface Props {
@@ -107,7 +109,13 @@ export const HighlightedField = forwardRef<HighlightedFieldHandle, Props>(functi
     for (const source of completions ?? []) {
       const token = activeToken(value, caret, source.marker, source.minChars);
       if (!token) continue;
-      const items = rankSuggestions(source.names, token.query, source.maxItems);
+      let preferred: ReadonlySet<string> | undefined;
+      if (source.preferred) {
+        const lineStart = value.lastIndexOf('\n', token.start - 1) + 1;
+        const lineEnd = value.indexOf('\n', token.end);
+        preferred = source.preferred(value.slice(lineStart, token.start) + value.slice(token.end, lineEnd < 0 ? undefined : lineEnd));
+      }
+      const items = rankSuggestions(source.names, token.query, source.maxItems, preferred);
       if (items.length > 0) return { token, items };
     }
     return null;

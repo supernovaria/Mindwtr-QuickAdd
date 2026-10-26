@@ -136,14 +136,20 @@ export function App() {
     if (typing.areaSuggest.enabled) sources.push({ marker: '!', names: live(areas).map((a) => a.name), ...typing.areaSuggest });
     if (typing.projectSuggest.enabled) {
       const open = live(projects).filter((p) => p.status !== 'archived');
-      sources.push({ marker: '+', names: open.map((p) => p.title), ...typing.projectSuggest });
+      // Projects in an area the line already names (`!Home +`) are listed first.
+      const preferred = (line: string) => {
+        const parsed = safeParse(line, ctx, {});
+        const area = parsed.props.areaId ?? parsed.newProject?.areaId;
+        return new Set(typeof area === 'string' ? open.filter((p) => p.areaId === area).map((p) => p.title) : []);
+      };
+      sources.push({ marker: '+', names: open.map((p) => p.title), preferred, ...typing.projectSuggest });
     }
     // Known contexts and tags come with their marker (`@phone`); list the bare names.
     const bare = (tokens: string[], marker: string) => [...new Set(tokens.map((t) => (t.startsWith(marker) ? t.slice(1) : t)).filter(Boolean))];
     if (typing.contextSuggest.enabled) sources.push({ marker: '@', names: bare(known.contexts, '@'), ...typing.contextSuggest });
     if (typing.tagSuggest.enabled) sources.push({ marker: '#', names: bare(known.tags, '#'), ...typing.tagSuggest });
     return sources;
-  }, [typing, areas, projects, known]);
+  }, [typing, areas, projects, known, ctx]);
   const dueByDate = useMemo(() => {
     const byDate = new Map<string, string[]>();
     for (const task of known.due) byDate.set(task.date, [...(byDate.get(task.date) ?? []), task.title]);

@@ -32,6 +32,11 @@ describe('rankSuggestions', () => {
   test('caps at five', () => {
     expect(rankSuggestions(AREAS, 'a')).toHaveLength(5);
   });
+  test('lists preferred names first, still ranked among themselves', () => {
+    const preferred = new Set(['Social', 'Home & Admin']);
+    expect(rankSuggestions(AREAS, '', 3, preferred)).toEqual(['Social', 'Home & Admin', 'Career & Impact']);
+    expect(rankSuggestions(AREAS, 'h', 5, preferred)).toEqual(['Home & Admin', 'Health, Self & Well-being']);
+  });
 });
 
 describe('applyCompletion', () => {
