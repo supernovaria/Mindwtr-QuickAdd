@@ -41,10 +41,16 @@ const normalize = (value: string) => value.toLocaleLowerCase().normalize('NFKD')
 /**
  * Names that match the query: prefix matches first, then word starts, then
  * anywhere. An empty query matches every name. `max` null = no limit.
+ * Matches in `preferred` (say, projects in the area already typed) come before the rest.
  */
-export function rankSuggestions(names: readonly string[], query: string, max: number | null = 5): string[] {
+export function rankSuggestions(
+  names: readonly string[],
+  query: string,
+  max: number | null = 5,
+  preferred: ReadonlySet<string> = new Set(),
+): string[] {
   const q = normalize(query);
-  const scored: { name: string; score: number; index: number }[] = [];
+  const scored: { name: string; score: number; index: number; other: number }[] = [];
   names.forEach((name, index) => {
     const n = normalize(name);
     let score: number;
@@ -52,9 +58,9 @@ export function rankSuggestions(names: readonly string[], query: string, max: nu
     else if (n.split(/[^\p{L}\p{N}]+/u).some((word) => word.startsWith(q))) score = 1;
     else if (n.includes(q)) score = 2;
     else return;
-    scored.push({ name, score, index });
+    scored.push({ name, score, index, other: preferred.has(name) ? 0 : 1 });
   });
-  scored.sort((a, b) => a.score - b.score || a.index - b.index);
+  scored.sort((a, b) => a.other - b.other || a.score - b.score || a.index - b.index);
   return (max === null ? scored : scored.slice(0, max)).map((item) => item.name);
 }
 
