@@ -3,7 +3,7 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import type { Settings, SuggestSettings } from '../preload/api';
 
-export const DEFAULT_HOTKEY = 'Control+Alt+Space';
+export const DEFAULT_HOTKEY = 'Control+Space';
 
 export const DEFAULT_SETTINGS: Settings = {
   hotkey: DEFAULT_HOTKEY,

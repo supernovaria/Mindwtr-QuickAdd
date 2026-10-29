@@ -115,7 +115,7 @@ export function parseBulk(text: string, ctx: CaptureContext, defaults?: CaptureD
   per-line preview. Ctrl+Enter saves all. **Import .txt** opens a file picker and loads
   the file into Bulk add.
 - **Keys:** Enter saves (text mode), Ctrl+Enter saves (bulk), Esc hides the window.
-- **Global hotkey** toggles the window (default `Ctrl+Alt+Space`, configurable). Tray icon,
+- **Global hotkey** toggles the window (default `Ctrl+Space`, configurable). Tray icon,
   single instance, optional start-at-login. After saving: brief "Added" confirmation, reset, hide.
 - **Settings:** hotkey, API port/token override (auto-detected by default), start at login.
   Stored as JSON in Electron `userData`.

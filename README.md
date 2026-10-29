@@ -50,7 +50,7 @@ token can also be overridden in QuickAdd's Settings.
 
 ## 2. Use it
 
-- **Ctrl+Alt+Space** (changeable in Settings) shows or hides the window. It also sits in the tray.
+- **Ctrl+Space** (changeable in Settings) shows or hides the window. It also sits in the tray.
 - **Enter** saves, **Esc** hides. The ☆ star adds the task to today's focus; the Area select sets a
   default area for tasks that don't name a project.
 - **Enter** saves, **Ctrl+Enter** (or **Add & Edit**) saves and opens the task in Mindwtr's editor
