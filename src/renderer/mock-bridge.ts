@@ -42,7 +42,7 @@ export function createMockBridge(): QuickAddBridge {
   const ok = <T,>(data: T): Promise<ApiResult<T>> =>
     Promise.resolve(error ? { ok: false, error } : { ok: true, data });
   let settings: Settings = {
-    hotkey: 'Control+Alt+Space',
+    hotkey: 'Control+Space',
     apiPort: null,
     apiToken: null,
     startAtLogin: false,
